@@ -1014,34 +1014,34 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
       
       {/* MAIN LAYOUT WITH SIDEBAR NAVIGATION */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        {/* SIDEBAR NAVIGATION (BO GÓC, PADDING TRÊN DƯỚI, TÍCH HỢP BẢNG ĐIỀU KHIỂN CỘNG ĐỒNG) */}
-        <aside className="lg:col-span-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl py-6 px-4 shadow-sm space-y-6 lg:sticky lg:top-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 items-start">
+        {/* SIDEBAR NAVIGATION */}
+        <aside className="lg:col-span-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-2xl lg:rounded-3xl p-3.5 sm:p-5 lg:py-6 lg:px-4 shadow-sm space-y-3 sm:space-y-4 lg:space-y-6 lg:sticky lg:top-4">
           
           {/* COMMUNITY HEADER IN SIDEBAR */}
-          <div className="px-1 space-y-2 pb-4 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="px-1 space-y-2 pb-3 lg:pb-4 border-b border-slate-200/80 dark:border-slate-800">
             <div className="flex items-center justify-between gap-2">
-              <h1 className="text-lg font-black text-[#1B1F2E] dark:text-white tracking-tight flex items-center gap-1.5">
-                <Users className="w-5 h-5 text-[#2E68FF]" />
-                <span>Cộng Đồng & Squad</span>
+              <h1 className="text-base sm:text-lg font-black text-[#1B1F2E] dark:text-white tracking-tight flex items-center gap-1.5 min-w-0">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[#2E68FF] shrink-0" />
+                <span className="truncate">Cộng Đồng & Squad</span>
               </h1>
               <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold flex items-center gap-1 border border-emerald-200/80 dark:border-emerald-800 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                 115 Online
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug hidden sm:block">
               Kết nối bạn học, ghép nói 1-1 & làm bài tập nhóm.
             </p>
 
             {/* QUICK CREATION ACTIONS IN SIDEBAR */}
-            <div className="grid grid-cols-2 gap-2 pt-2">
+            <div className="grid grid-cols-2 gap-2 pt-1 sm:pt-2">
               <button
                 type="button"
                 onClick={() => setIsCreateRoomOpen(true)}
                 className="py-2 px-2.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
               >
-                <Radio className="w-3.5 h-3.5" />
+                <Radio className="w-3.5 h-3.5 shrink-0" />
                 <span>Tạo phòng</span>
               </button>
 
@@ -1050,37 +1050,37 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                 onClick={() => setIsCreateSquadOpen(true)}
                 className="py-2 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-slate-200 dark:border-slate-700"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span>Tạo nhóm</span>
               </button>
             </div>
           </div>
 
           {/* Navigation Section */}
-          <div className="space-y-2">
-            <div className="px-2">
+          <div className="space-y-1.5 sm:space-y-2">
+            <div className="px-2 hidden lg:block">
               <div className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
                 Danh Mục Tương Tác
               </div>
             </div>
 
-            {/* Navigation Items */}
-            <nav className="space-y-1.5">
+            {/* Navigation Items - Horizontal scroll on mobile, vertical stack on desktop */}
+            <nav className="flex lg:flex-col overflow-x-auto scrollbar-none gap-1.5 pb-1 lg:pb-0 -mx-1 px-1">
             {/* Tab 1: Sảnh Chung */}
             <button
               type="button"
               onClick={() => setActiveTab('plaza')}
-              className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition-all ${
+              className={`shrink-0 lg:w-full flex items-center justify-between gap-2 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl font-bold text-xs transition-all ${
                 activeTab === 'plaza'
                   ? 'bg-[#2E68FF] text-white shadow-md shadow-blue-500/20'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 bg-slate-50 dark:bg-slate-900/50 lg:bg-transparent'
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                <Globe className={`w-4 h-4 ${activeTab === 'plaza' ? 'text-white' : 'text-[#2E68FF]'}`} />
-                <span>Sảnh Chung</span>
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <Globe className={`w-4 h-4 shrink-0 ${activeTab === 'plaza' ? 'text-white' : 'text-[#2E68FF]'}`} />
+                <span className="whitespace-nowrap">Sảnh Chung</span>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              <span className={`text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-black ${
                 activeTab === 'plaza' ? 'bg-white/20 text-white' : 'bg-blue-50 dark:bg-blue-950 text-[#2E68FF]'
               }`}>Nổi Bật</span>
             </button>
@@ -1090,17 +1090,17 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
             <button
               type="button"
               onClick={() => setActiveTab('squads')}
-              className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition-all ${
+              className={`shrink-0 lg:w-full flex items-center justify-between gap-2 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl font-bold text-xs transition-all ${
                 activeTab === 'squads'
                   ? 'bg-[#2E68FF] text-white shadow-md shadow-blue-500/20'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 bg-slate-50 dark:bg-slate-900/50 lg:bg-transparent'
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                <Search className={`w-4 h-4 ${activeTab === 'squads' ? 'text-white' : 'text-[#2E68FF]'}`} />
-                <span>Tìm Nhóm Squad</span>
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <Search className={`w-4 h-4 shrink-0 ${activeTab === 'squads' ? 'text-white' : 'text-[#2E68FF]'}`} />
+                <span className="whitespace-nowrap">Tìm Nhóm Squad</span>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              <span className={`text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-black ${
                 activeTab === 'squads' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
               }`}>{squads.length}</span>
             </button>
@@ -1109,22 +1109,22 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
             <button
               type="button"
               onClick={() => setActiveTab('manage')}
-              className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition-all ${
+              className={`shrink-0 lg:w-full flex items-center justify-between gap-2 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl font-bold text-xs transition-all ${
                 activeTab === 'manage'
                   ? 'bg-[#2E68FF] text-white shadow-md shadow-blue-500/20'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 bg-slate-50 dark:bg-slate-900/50 lg:bg-transparent'
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                <ShieldCheck className={`w-4 h-4 ${activeTab === 'manage' ? 'text-white' : 'text-emerald-500'}`} />
-                <span>Nhóm Của Tôi</span>
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <ShieldCheck className={`w-4 h-4 shrink-0 ${activeTab === 'manage' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className="whitespace-nowrap">Nhóm Của Tôi</span>
               </div>
               {pendingApplicants.length > 0 ? (
-                <span className="w-5 h-5 rounded-full bg-red-500 text-white font-black text-[10px] flex items-center justify-center animate-pulse">
+                <span className="w-5 h-5 rounded-full bg-red-500 text-white font-black text-[10px] flex items-center justify-center animate-pulse shrink-0">
                   {pendingApplicants.length}
                 </span>
               ) : (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                <span className={`text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-black ${
                   activeTab === 'manage' ? 'bg-white/20 text-white' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600'
                 }`}>Quản lý</span>
               )}
@@ -1134,17 +1134,17 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
             <button
               type="button"
               onClick={() => setActiveTab('live-room')}
-              className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition-all ${
+              className={`shrink-0 lg:w-full flex items-center justify-between gap-2 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl font-bold text-xs transition-all ${
                 activeTab === 'live-room'
                   ? 'bg-[#2E68FF] text-white shadow-md shadow-blue-500/20'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 bg-slate-50 dark:bg-slate-900/50 lg:bg-transparent'
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                <Radio className={`w-4 h-4 ${activeTab === 'live-room' ? 'text-white' : 'text-red-500 animate-pulse'}`} />
-                <span>Phòng Call Live</span>
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <Radio className={`w-4 h-4 shrink-0 ${activeTab === 'live-room' ? 'text-white' : 'text-red-500 animate-pulse'}`} />
+                <span className="whitespace-nowrap">Phòng Call Live</span>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              <span className={`text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-black ${
                 activeTab === 'live-room' ? 'bg-white/20 text-white' : 'bg-red-100 dark:bg-red-950 text-red-600'
               }`}>{liveRooms.length}</span>
             </button>
@@ -1153,25 +1153,25 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
             <button
               type="button"
               onClick={() => setActiveTab('leaderboard')}
-              className={`w-full flex items-center justify-between p-3 rounded-2xl font-bold text-xs transition-all ${
+              className={`shrink-0 lg:w-full flex items-center justify-between gap-2 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl font-bold text-xs transition-all ${
                 activeTab === 'leaderboard'
                   ? 'bg-[#2E68FF] text-white shadow-md shadow-blue-500/20'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 bg-slate-50 dark:bg-slate-900/50 lg:bg-transparent'
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                <Trophy className={`w-4 h-4 ${activeTab === 'leaderboard' ? 'text-white' : 'text-amber-500'}`} />
-                <span>Bảng Xếp Hạng</span>
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <Trophy className={`w-4 h-4 shrink-0 ${activeTab === 'leaderboard' ? 'text-white' : 'text-amber-500'}`} />
+                <span className="whitespace-nowrap">Bảng Xếp Hạng</span>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              <span className={`text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-black ${
                 activeTab === 'leaderboard' ? 'bg-white/20 text-white' : 'bg-amber-100 dark:bg-amber-950 text-amber-600'
               }`}>Top 10</span>
             </button>
           </nav>
         </div>
 
-          {/* SIDEBAR QUICK ACTIONS & STATS */}
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+          {/* SIDEBAR QUICK ACTIONS & STATS (Hidden on mobile to reduce scroll height) */}
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3 hidden lg:block">
             <div className="p-3.5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-black text-[#1B1F2E] dark:text-white flex items-center gap-1.5">
@@ -1209,20 +1209,20 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
         <main className="lg:col-span-3 min-w-0">
           {/* TAB 1: PUBLIC PLAZA */}
       {activeTab === 'plaza' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-5">
             {/* Quick Match Showcase */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between transition-all shadow-xs hover:shadow-md">
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between transition-all shadow-xs hover:shadow-md">
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2E68FF] dark:text-[#5B8CFF]">
                     Quick Voice 1-1
                   </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1 shrink-0">
                     <Users className="w-3.5 h-3.5 text-[#2E68FF]" /> 115 Online
                   </span>
                 </div>
-                <h3 className="font-extrabold text-base text-[#1B1F2E] dark:text-white">
+                <h3 className="font-extrabold text-sm sm:text-base text-[#1B1F2E] dark:text-white leading-snug">
                   ⚡ Ghép Đôi Luyện Nói 1-1 Ngẫu Nhiên
                 </h3>
                 <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1] leading-relaxed">
@@ -1233,9 +1233,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
               <button
                 type="button"
                 onClick={handleStartQuickMatch}
-                className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
               >
-                <Zap className="w-4 h-4 fill-slate-700 dark:fill-slate-300 group-hover:fill-white text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors" />
+                <Zap className="w-4 h-4 fill-slate-700 dark:fill-slate-300 group-hover:fill-white text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors shrink-0" />
                 <span>Tìm Bạn Luyện Nói Ngay</span>
               </button>
             </div>
@@ -1246,22 +1246,22 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                 setPublicRoomsCategory('game');
                 setActiveTab('public-rooms');
               }}
-              className="p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between cursor-pointer transition-all shadow-xs hover:shadow-md"
+              className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between cursor-pointer transition-all shadow-xs hover:shadow-md"
             >
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300">
                     Sự Kiện Đêm
                   </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1 shrink-0">
                     <Clock className="w-3.5 h-3.5 text-[#2E68FF]" /> 21:30 Tối Nay
                   </span>
                 </div>
-                <h3 className="font-extrabold text-base text-[#1B1F2E] dark:text-white">
+                <h3 className="font-extrabold text-sm sm:text-base text-[#1B1F2E] dark:text-white leading-snug">
                   🎮 Sảnh Game Đêm: Taboo & Nối Từ
                 </h3>
                 <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1] leading-relaxed">
-                  Trò chơi tiếng Anh tương tác có thưởng x2 điểm chuỗi nhóm do AI MC làm trọng tài. Xem các phòng Public đang mở.
+                  Trò chơi tiếng Anh tương tác có thưởng x2 điểm chuỗi nhóm do AI MC làm trọng tài.
                 </p>
               </div>
 
@@ -1272,10 +1272,10 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                   setPublicRoomsCategory('game');
                   setActiveTab('public-rooms');
                 }}
-                className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
               >
-                <Gamepad2 className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors" />
-                <span>Vào Xem Danh Sách Phòng Game ({publicRooms.filter(r => r.category === 'game').length})</span>
+                <Gamepad2 className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors shrink-0" />
+                <span className="truncate">Phòng Game ({publicRooms.filter(r => r.category === 'game').length})</span>
               </button>
             </div>
 
@@ -1285,20 +1285,20 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                 setPublicRoomsCategory('discussion');
                 setActiveTab('public-rooms');
               }}
-              className="p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between cursor-pointer transition-all shadow-xs hover:shadow-md"
+              className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between cursor-pointer transition-all shadow-xs hover:shadow-md"
             >
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center gap-1">
                     <Radio className="w-3 h-3 animate-ping" /> Live Topic
                   </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">28 Tham gia</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold shrink-0">28 Tham gia</span>
                 </div>
-                <h3 className="font-extrabold text-base text-[#1B1F2E] dark:text-white">
-                  🗣️ Topic Tranh Luận: "AI in Education"
+                <h3 className="font-extrabold text-sm sm:text-base text-[#1B1F2E] dark:text-white leading-snug">
+                  🗣️ Topic: "AI in Education"
                 </h3>
                 <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1] leading-relaxed">
-                  Luyện tư duy phản biện & sử dụng từ vựng nâng cao C1 theo câu hỏi gợi ý từ hệ thống. Xin duyệt vào phòng.
+                  Luyện tư duy phản biện & từ vựng C1. Xin duyệt vào phòng call ngay.
                 </p>
               </div>
 
@@ -1309,10 +1309,10 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                   setPublicRoomsCategory('discussion');
                   setActiveTab('public-rooms');
                 }}
-                className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
               >
-                <Mic className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors" />
-                <span>Xem Phòng Topic & Xin Duyệt Mic ({publicRooms.filter(r => r.category === 'discussion').length})</span>
+                <Mic className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors shrink-0" />
+                <span className="truncate">Phòng Topic & Mic ({publicRooms.filter(r => r.category === 'discussion').length})</span>
               </button>
             </div>
           </div>
@@ -1321,15 +1321,15 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
 
       {/* TAB 2: FIND SQUADS */}
       {activeTab === 'squads' && (
-        <div className="p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-4 sm:space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div>
-              <h2 className="text-lg font-extrabold text-[#1B1F2E] dark:text-white flex items-center gap-2">
-                <Search className="w-5 h-5 text-[#2E68FF]" />
-                <span>Danh Sách Nhóm Đang Tuyển Thành Viên</span>
+              <h2 className="text-base sm:text-lg font-extrabold text-[#1B1F2E] dark:text-white flex items-center gap-2">
+                <Search className="w-4 h-4 sm:w-5 sm:h-5 text-[#2E68FF]" />
+                <span>Danh Sách Nhóm Tuyển Thành Viên</span>
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Lọc nhóm theo mục tiêu (IELTS, TOEIC, Giao tiếp), trình độ và lịch học.
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Lọc nhóm theo mục tiêu, trình độ và lịch học.
               </p>
             </div>
 
@@ -1345,14 +1345,14 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#E4E8F0] dark:border-[#334155]">
-            <span className="text-xs font-bold text-slate-500">Mục tiêu:</span>
+          <div className="flex items-center gap-2 pt-2 border-t border-[#E4E8F0] dark:border-[#334155] overflow-x-auto scrollbar-none pb-1">
+            <span className="text-xs font-bold text-slate-500 shrink-0">Mục tiêu:</span>
             {['All', 'IELTS 6.5+', 'Giao tiếp Pro', 'TOEIC 800+', 'English for Tech'].map((g) => (
               <button
                 key={g}
                 type="button"
                 onClick={() => setSelectedGoal(g)}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0 ${
                   selectedGoal === g
                     ? 'bg-[#2E68FF] text-white'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
@@ -1363,36 +1363,36 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
             ))}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 pt-1">
             {filteredSquads.map((squad) => (
               <div
                 key={squad.id}
-                className="p-5 rounded-2xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#2E68FF] transition-all space-y-4 flex flex-col justify-between"
+                className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 hover:border-[#2E68FF] transition-all space-y-3.5 flex flex-col justify-between"
               >
                 <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-start justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <img
                         src={squad.avatar}
                         alt={squad.name}
-                        className="w-12 h-12 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-xs"
+                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-xs shrink-0"
                       />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-extrabold text-sm text-[#1B1F2E] dark:text-white">{squad.name}</h4>
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-extrabold text-sm text-[#1B1F2E] dark:text-white truncate">{squad.name}</h4>
+                          <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 shrink-0">
                             {squad.badge}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500">Người khởi xướng: <strong>{squad.creator}</strong></p>
+                        <p className="text-xs text-slate-500 truncate">Khởi xướng: <strong>{squad.creator}</strong></p>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
                       <span className="text-xs font-black text-amber-500 flex items-center justify-end gap-1">
-                        <Flame className="w-4 h-4 fill-amber-500" /> {squad.streakDays}d Streak
+                        <Flame className="w-3.5 h-3.5 fill-amber-500" /> {squad.streakDays}d
                       </span>
-                      <span className="text-[11px] text-slate-400 font-medium">
+                      <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium">
                         {squad.membersCount}/{squad.maxMembers} người
                       </span>
                     </div>
@@ -1402,14 +1402,14 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                     {squad.description}
                   </p>
 
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
-                    <span className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 text-[#2E68FF]">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] font-semibold text-slate-500">
+                    <span className="px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-[#2E68FF]">
                       🎯 {squad.targetGoal}
                     </span>
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600">
+                    <span className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600">
                       📊 {squad.level}
                     </span>
-                    <span className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    <span className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                       ⏰ {squad.schedule}
                     </span>
                   </div>
@@ -1422,7 +1422,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                   }}
                   className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 group"
                 >
-                  <UserPlus className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors" />
+                  <UserPlus className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors shrink-0" />
                   <span>Nộp Đơn Gia Nhập Nhóm</span>
                 </button>
               </div>
@@ -1433,43 +1433,43 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
 
       {/* TAB 3: SQUAD MANAGEMENT (QUẢN LÝ NHÓM CỦA TÔI) */}
       {activeTab === 'manage' && (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           
           {/* SQUAD MANAGEMENT HEADER & SUB TABS */}
-          <div className="p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs space-y-6">
+          <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs space-y-4 sm:space-y-6">
             
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#E4E8F0] dark:border-[#334155] pb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-md">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-b border-[#E4E8F0] dark:border-[#334155] pb-4 sm:pb-5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-base sm:text-xl shadow-md shrink-0">
                   SQ1
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-extrabold text-[#1B1F2E] dark:text-white">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h2 className="text-base sm:text-xl font-extrabold text-[#1B1F2E] dark:text-white truncate">
                       IELTS Band 7.5 Warriors 🚀
                     </h2>
-                    <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-xs font-black flex items-center gap-1 border border-emerald-300 dark:border-emerald-800">
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[10px] sm:text-xs font-black flex items-center gap-1 border border-emerald-300 dark:border-emerald-800 shrink-0">
                       <ShieldCheck className="w-3 h-3" /> Quyền Bình Đẳng
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Khởi xướng bởi: <strong>Kỳ Duyên</strong> • Mục tiêu: <strong>IELTS 6.5+</strong> • Sĩ số: <strong>4/5 thành viên</strong>
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1">
+                    Khởi xướng: <strong>Kỳ Duyên</strong> • Mục tiêu: <strong>IELTS 6.5+</strong> • <strong>4/5 người</strong>
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="px-3.5 py-1.5 rounded-full bg-amber-500 text-white font-black text-xs flex items-center gap-1.5 shadow-xs">
-                  <Flame className="w-4 h-4 fill-white animate-bounce" /> 18 Ngày Streak
+              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start">
+                <span className="px-3 py-1.5 rounded-full bg-amber-500 text-white font-black text-xs flex items-center gap-1.5 shadow-xs">
+                  <Flame className="w-3.5 h-3.5 fill-white animate-bounce" /> 18d Streak
                 </span>
 
                 <button
                   type="button"
                   onClick={() => setIsCreateRoomOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors"
+                  className="px-3.5 py-1.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
                 >
-                  <Radio className="w-4 h-4" />
-                  <span>Mở Phòng Call Luyện Nói</span>
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>Mở Phòng Call</span>
                 </button>
               </div>
             </div>
@@ -2334,68 +2334,68 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                 </div>
 
                 {/* Main Call Action Bar */}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <button
                     type="button"
                     onClick={() => setMicOn(!micOn)}
-                    className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors border ${
+                    className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-colors border ${
                       micOn
                         ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
                         : 'bg-red-500/20 border-red-500 text-red-300'
                     }`}
                   >
-                    {micOn ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4 text-red-400" />}
+                    {micOn ? <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400" />}
                     <span>{micOn ? 'Mic: Bật' : 'Mic: Tắt'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setCamOn(!camOn)}
-                    className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors border ${
+                    className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-colors border ${
                       camOn
                         ? 'bg-blue-500/20 border-blue-500 text-blue-300'
                         : 'bg-slate-800 border-slate-700 text-slate-400'
                     }`}
                   >
-                    {camOn ? <Video className="w-4 h-4 text-blue-400" /> : <VideoOff className="w-4 h-4 text-slate-400" />}
+                    {camOn ? <Video className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" /> : <VideoOff className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />}
                     <span>{camOn ? 'Cam: Bật' : 'Cam: Tắt'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setHandRaised(!handRaised)}
-                    className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors border ${
+                    className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-colors border ${
                       handRaised
                         ? 'bg-amber-500 text-slate-950 font-black border-amber-400'
                         : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                     }`}
                   >
-                    <Hand className="w-4 h-4" />
-                    <span>{handRaised ? 'Đang Giơ Tay ✋' : 'Giơ Tay Phát Biểu'}</span>
+                    <Hand className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>{handRaised ? 'Giơ Tay ✋' : 'Giơ Tay'}</span>
                   </button>
 
                   {/* Toggle Fullscreen / Expand Mode */}
                   <button
                     type="button"
                     onClick={() => setIsCallMaximized(!isCallMaximized)}
-                    className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all border ${
+                    className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl font-bold text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all border ${
                       isCallMaximized
                         ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/50'
                         : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
                     }`}
                     title={isCallMaximized ? "Thu nhỏ giao diện cuộc gọi" : "Phóng to toàn màn hình cuộc gọi"}
                   >
-                    {isCallMaximized ? <Minimize2 className="w-4 h-4 text-purple-200" /> : <Maximize2 className="w-4 h-4 text-purple-300" />}
-                    <span>{isCallMaximized ? 'Thu Nhỏ' : 'Phóng To Call'}</span>
+                    {isCallMaximized ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-200" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-300" />}
+                    <span>{isCallMaximized ? 'Thu Nhỏ' : 'Phóng To'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleFinishCallAndSummarize}
-                    className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-red-600/30 transition-all active:scale-95 ml-1"
+                    className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 shadow-lg shadow-red-600/30 transition-all active:scale-95"
                   >
-                    <PhoneCall className="w-4 h-4 rotate-135" />
-                    <span>Rời Call & Nhận Tóm Tắt AI</span>
+                    <PhoneCall className="w-3.5 h-3.5 sm:w-4 sm:h-4 rotate-135 shrink-0" />
+                    <span>Rời Call <span className="hidden sm:inline">& Nhận Tóm Tắt AI</span></span>
                   </button>
                 </div>
               </div>
