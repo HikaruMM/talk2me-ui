@@ -25,6 +25,10 @@ import {
   X, 
   PhoneCall, 
   Video, 
+  VideoOff,
+  Hand,
+  Maximize2,
+  Minimize2,
   ShieldCheck, 
   UserCheck, 
   UserX, 
@@ -35,6 +39,7 @@ import {
   Send, 
   Globe, 
   ArrowRight,
+  ArrowLeft,
   Settings,
   BookOpen,
   FileText,
@@ -136,6 +141,22 @@ interface LiveStudyRoom {
   hasAiMc: boolean;
 }
 
+export interface PublicUserRoom {
+  id: string;
+  title: string;
+  category: 'game' | 'discussion';
+  topic: string;
+  activityMode: 'topic' | 'word-chain' | 'taboo';
+  hostName: string;
+  hostAvatar: string;
+  hostRole: string;
+  activeParticipants: number;
+  maxParticipants: number;
+  level: string;
+  type: 'Voice Call' | 'Video Call';
+  requestStatus: 'idle' | 'pending' | 'approved' | 'rejected';
+}
+
 interface CommunitySectionProps {
   onSelectCourse?: (courseId: string) => void;
   onOpenFlashcards?: () => void;
@@ -143,7 +164,7 @@ interface CommunitySectionProps {
 
 export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCourse, onOpenFlashcards }) => {
   // Main Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'plaza' | 'squads' | 'manage' | 'live-room' | 'leaderboard'>('plaza');
+  const [activeTab, setActiveTab] = useState<'plaza' | 'public-rooms' | 'squads' | 'manage' | 'live-room' | 'leaderboard'>('plaza');
 
   // Squad Management Sub Tabs
   const [manageSubTab, setManageSubTab] = useState<'overview' | 'resources' | 'approvals' | 'tasks' | 'activity'>('overview');
@@ -245,7 +266,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
   // Live Study Room State
   const [isLiveCallActive, setIsLiveCallActive] = useState<boolean>(false);
   const [activeRoomTitle, setActiveRoomTitle] = useState<string>('Phòng Speaking IELTS Task 2 - Topic Environment');
-  const [activeGame, setActiveGame] = useState<'word-chain' | 'taboo' | 'storytelling' | 'none'>('none');
+  const [activeGame, setActiveGame] = useState<'topic' | 'word-chain' | 'taboo'>('topic');
+  const [selectedRoomActivity, setSelectedRoomActivity] = useState<'topic' | 'word-chain' | 'taboo'>('topic');
   const [gameScore, setGameScore] = useState<number>(0);
   const [aiTopicCards, setAiTopicCards] = useState<string[]>([
     "Chủ đề hôm nay: Describe your favorite travel memory using at least 3 adjectives.",
@@ -254,12 +276,196 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
   ]);
   const [isGeneratingAiTopic, setIsGeneratingAiTopic] = useState<boolean>(false);
   const [micOn, setMicOn] = useState<boolean>(true);
+  const [camOn, setCamOn] = useState<boolean>(true);
+  const [handRaised, setHandRaised] = useState<boolean>(false);
+  const [isCallMaximized, setIsCallMaximized] = useState<boolean>(false);
+  const [isMicTesting, setIsMicTesting] = useState<boolean>(false);
   const [aiSummary, setAiSummary] = useState<string>('');
+
+  // Interactive Game Inputs and Turns
+  const [wordChainHistory, setWordChainHistory] = useState<string[]>(['EDUCATION', 'NATURE', 'ENVIRONMENT']);
+  const [wordChainInput, setWordChainInput] = useState<string>('');
+  const [tabooGuessInput, setTabooGuessInput] = useState<string>('');
+  const [tabooFeedback, setTabooFeedback] = useState<string>('');
+  const [activeTurnPlayer, setActiveTurnPlayer] = useState<string>('Kỳ Duyên (Bạn)');
+  const [customLobbyTopic, setCustomLobbyTopic] = useState<string>('Topic Environment & Climate Change (IELTS Task 2)');
 
   // Modals state
   const [isCreateSquadOpen, setIsCreateSquadOpen] = useState<boolean>(false);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState<boolean>(false);
   const [isAddTaskOpen, setIsAddTaskOpen] = useState<boolean>(false);
+
+  // Public Rooms Directory State
+  const [isPublicRoomsModalOpen, setIsPublicRoomsModalOpen] = useState<boolean>(false);
+  const [publicRoomsCategory, setPublicRoomsCategory] = useState<'all' | 'game' | 'discussion'>('game');
+  const [publicSearchQuery, setPublicSearchQuery] = useState<string>('');
+  const [publicLevelFilter, setPublicLevelFilter] = useState<string>('All');
+
+  const [isCreatingPublicRoom, setIsCreatingPublicRoom] = useState<boolean>(false);
+  const [newPubRoomTitle, setNewPubRoomTitle] = useState<string>('');
+  const [newPubRoomTopic, setNewPubRoomTopic] = useState<string>('');
+  const [newPubRoomCategory, setNewPubRoomCategory] = useState<'game' | 'discussion'>('game');
+  const [newPubRoomMode, setNewPubRoomMode] = useState<'topic' | 'word-chain' | 'taboo'>('word-chain');
+  const [newPubRoomMax, setNewPubRoomMax] = useState<number>(6);
+  const [newPubRoomLevel, setNewPubRoomLevel] = useState<string>('B1-B2 (Trung cấp)');
+
+  const [publicRooms, setPublicRooms] = useState<PublicUserRoom[]>([
+    {
+      id: 'pub-room-1',
+      title: '🎮 Sảnh Game Đêm: Taboo & Nối Từ Band 6.5+',
+      category: 'game',
+      topic: 'Game Đoán Từ Taboo & Nối Chữ Từ Vựng Du Lịch & Cuộc Sống',
+      activityMode: 'taboo',
+      hostName: 'Trần Minh Thu',
+      hostAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+      hostRole: 'Chủ phòng (IELTS 7.5)',
+      activeParticipants: 4,
+      maxParticipants: 6,
+      level: 'B1-B2 (Trung cấp)',
+      type: 'Voice Call',
+      requestStatus: 'idle'
+    },
+    {
+      id: 'pub-room-2',
+      title: '🔤 Thử Thách Nối Từ Tiếng Anh - Chuyên Ngành Tech & AI',
+      category: 'game',
+      topic: 'Nối từ tiếng Anh IT, phần mềm & Thưởng điểm thi đua chuỗi nhóm',
+      activityMode: 'word-chain',
+      hostName: 'Lê Quốc Bảo',
+      hostAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      hostRole: 'Chủ phòng (Tech Leader)',
+      activeParticipants: 3,
+      maxParticipants: 5,
+      level: 'C1 (Nâng cao)',
+      type: 'Voice Call',
+      requestStatus: 'idle'
+    },
+    {
+      id: 'pub-room-3',
+      title: '🎲 Taboo Challenge: Đoán Từ Bí Mật KhÔNG Dùng Từ Cấm',
+      category: 'game',
+      topic: 'Luyện phản xạ diễn đạt từ vựng IELTS C1-C2 không bị bí ý',
+      activityMode: 'taboo',
+      hostName: 'Phạm Hoàng Anh',
+      hostAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+      hostRole: 'Chủ phòng (Band 8.0)',
+      activeParticipants: 2,
+      maxParticipants: 4,
+      level: 'A2-B1 (Cơ bản)',
+      type: 'Voice Call',
+      requestStatus: 'idle'
+    },
+    {
+      id: 'pub-room-4',
+      title: '🗣️ Topic Tranh Luận: "AI in Education - Pros & Cons"',
+      category: 'discussion',
+      topic: 'Luyện tư duy phản biện & Sử dụng từ vựng nâng cao C1 theo câu hỏi AI MC',
+      activityMode: 'topic',
+      hostName: 'Nguyễn Văn Nam',
+      hostAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      hostRole: 'Chủ phòng (IELTS 7.5)',
+      activeParticipants: 4,
+      maxParticipants: 5,
+      level: 'B2-C1 (Khá - Giỏi)',
+      type: 'Voice Call',
+      requestStatus: 'idle'
+    },
+    {
+      id: 'pub-room-5',
+      title: '💬 Speaking IELTS Task 2 - Environment & Climate Action',
+      category: 'discussion',
+      topic: 'Thảo luận giải pháp biến đổi khí hậu & nhận gợi ý sửa lỗi AI MC',
+      activityMode: 'topic',
+      hostName: 'Vũ Thị Mai',
+      hostAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      hostRole: 'Chủ phòng (IELTS Trainer)',
+      activeParticipants: 3,
+      maxParticipants: 4,
+      level: 'B1-B2 (Trung cấp)',
+      type: 'Video Call',
+      requestStatus: 'idle'
+    },
+    {
+      id: 'pub-room-6',
+      title: '☕ English Coffee Chat - Career Goals & Work-Life Balance',
+      category: 'discussion',
+      topic: 'Trò chuyện tự do, chia sẻ mục tiêu sự nghiệp & thói quen học tập',
+      activityMode: 'topic',
+      hostName: 'Trịnh Bảo Ngọc',
+      hostAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
+      hostRole: 'Chủ phòng (Giao Tiếp Pro)',
+      activeParticipants: 2,
+      maxParticipants: 5,
+      level: 'A2-B1 (Cơ bản)',
+      type: 'Voice Call',
+      requestStatus: 'idle'
+    }
+  ]);
+
+  // Handlers for Requesting & Joining Public Rooms
+  const handleRequestJoinPublicRoom = (roomId: string) => {
+    setPublicRooms(prev => prev.map(room => {
+      if (room.id === roomId) {
+        return { ...room, requestStatus: 'pending' };
+      }
+      return room;
+    }));
+
+    // Auto approve after 2.5 seconds to simulate host approving
+    setTimeout(() => {
+      setPublicRooms(prev => prev.map(room => {
+        if (room.id === roomId) {
+          return { ...room, requestStatus: 'approved' };
+        }
+        return room;
+      }));
+    }, 2500);
+  };
+
+  const handleInstantApproveRequest = (roomId: string) => {
+    setPublicRooms(prev => prev.map(room => {
+      if (room.id === roomId) {
+        return { ...room, requestStatus: 'approved' };
+      }
+      return room;
+    }));
+  };
+
+  const handleEnterApprovedPublicRoom = (room: PublicUserRoom) => {
+    setIsPublicRoomsModalOpen(false);
+    setActiveRoomTitle(room.title);
+    setCustomLobbyTopic(room.topic);
+    setActiveGame(room.activityMode);
+    setActiveTab('live-room');
+    setIsLiveCallActive(false); // Sảnh chờ phòng call sẵn sàng!
+  };
+
+  const handleCreateNewPublicRoom = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPubRoomTitle.trim()) return;
+
+    const createdRoom: PublicUserRoom = {
+      id: `pub-user-${Date.now()}`,
+      title: newPubRoomTitle,
+      category: newPubRoomCategory,
+      topic: newPubRoomTopic || 'Thảo luận tự do & Luyện phản xạ',
+      activityMode: newPubRoomMode,
+      hostName: 'Kỳ Duyên (Bạn)',
+      hostAvatar: 'KD',
+      hostRole: 'Chủ phòng (Bạn tạo)',
+      activeParticipants: 1,
+      maxParticipants: newPubRoomMax,
+      level: newPubRoomLevel,
+      type: 'Voice Call',
+      requestStatus: 'approved'
+    };
+
+    setPublicRooms(prev => [createdRoom, ...prev]);
+    setIsCreatingPublicRoom(false);
+    setNewPubRoomTitle('');
+    setNewPubRoomTopic('');
+    alert('🎉 Đã tạo phòng Public thành công! Phòng của bạn đã hiển thị cho cộng đồng tham gia.');
+  };
 
   // Forms State
   const [newSquadName, setNewSquadName] = useState<string>('');
@@ -681,8 +887,40 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
     setLiveRooms(prev => [newRoom, ...prev]);
     setIsCreateRoomOpen(false);
     setActiveRoomTitle(createdTitle);
+    setCustomLobbyTopic(newRoomTopic);
+    setActiveGame(selectedRoomActivity);
     setActiveTab('live-room');
-    setIsLiveCallActive(true);
+    setIsLiveCallActive(false); // <--- Starts in Lobby (sảnh chờ)!
+  };
+
+  // Game Handlers
+  const handleWordChainSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wordChainInput.trim()) return;
+    const word = wordChainInput.trim().toUpperCase();
+    const lastWord = wordChainHistory[wordChainHistory.length - 1];
+    const requiredChar = lastWord.charAt(lastWord.length - 1);
+    if (word.charAt(0) !== requiredChar) {
+      alert(`⚠️ Từ nối phải bắt đầu bằng chữ '${requiredChar}'! Bạn đã nhập '${word.charAt(0)}'.`);
+      return;
+    }
+    setWordChainHistory(prev => [...prev, word]);
+    setGameScore(prev => prev + 15);
+    setWordChainInput('');
+    setActiveTurnPlayer(prev => prev === 'Kỳ Duyên (Bạn)' ? 'Minh Trí' : prev === 'Minh Trí' ? 'Bảo Ngọc' : 'Kỳ Duyên (Bạn)');
+  };
+
+  const handleTabooSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tabooGuessInput.trim()) return;
+    const guess = tabooGuessInput.trim().toLowerCase();
+    if (guess.includes('telescope') || guess.includes('kính thiên văn')) {
+      setGameScore(prev => prev + 25);
+      setTabooFeedback('🎉 Chính xác! Từ bí mật là TELESCOPE (+25 Pts)');
+    } else {
+      setTabooFeedback(`❌ '${tabooGuessInput}' chưa đúng. Gợi ý: Dụng cụ quan sát các vì sao xa xôi!`);
+    }
+    setTabooGuessInput('');
   };
 
   // Quick Matchmaking logic simulation
@@ -775,69 +1013,59 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
       
-      {/* SIMPLE & COMPACT HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-extrabold text-[#1B1F2E] dark:text-white tracking-tight">
-              Cộng Đồng & Squad Học Tập
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-              <Globe className="w-3 h-3 text-emerald-500" /> 115 Online
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Kết nối bạn học, tạo nhóm Squad, ghép nói 1-1 và theo dõi tiến độ học tập.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleStartQuickMatch}
-            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
-          >
-            <Zap className="w-3.5 h-3.5 fill-white" />
-            <span>Ghép nói 1-1</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsCreateRoomOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>Tạo phòng Call</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsCreateSquadOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors border border-slate-200 dark:border-slate-700"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Tạo nhóm</span>
-          </button>
-        </div>
-      </div>
-
       {/* MAIN LAYOUT WITH SIDEBAR NAVIGATION */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        {/* SIDEBAR NAVIGATION (BO GÓC, PADDING TRÊN DƯỚI) */}
+        {/* SIDEBAR NAVIGATION (BO GÓC, PADDING TRÊN DƯỚI, TÍCH HỢP BẢNG ĐIỀU KHIỂN CỘNG ĐỒNG) */}
         <aside className="lg:col-span-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 rounded-3xl py-6 px-4 shadow-sm space-y-6 lg:sticky lg:top-4">
-          {/* Section Header */}
-          <div className="px-2">
-            <div className="flex items-center gap-2 text-xs font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
-              <Users className="w-3.5 h-3.5 text-[#2E68FF]" />
-              <span>Menu Cộng Đồng</span>
+          
+          {/* COMMUNITY HEADER IN SIDEBAR */}
+          <div className="px-1 space-y-2 pb-4 border-b border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center justify-between gap-2">
+              <h1 className="text-lg font-black text-[#1B1F2E] dark:text-white tracking-tight flex items-center gap-1.5">
+                <Users className="w-5 h-5 text-[#2E68FF]" />
+                <span>Cộng Đồng & Squad</span>
+              </h1>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold flex items-center gap-1 border border-emerald-200/80 dark:border-emerald-800 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                115 Online
+              </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Chọn khu vực tương tác học tập
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+              Kết nối bạn học, ghép nói 1-1 & làm bài tập nhóm.
             </p>
+
+            {/* QUICK CREATION ACTIONS IN SIDEBAR */}
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateRoomOpen(true)}
+                className="py-2 px-2.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+              >
+                <Radio className="w-3.5 h-3.5" />
+                <span>Tạo phòng</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCreateSquadOpen(true)}
+                className="py-2 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-slate-200 dark:border-slate-700"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tạo nhóm</span>
+              </button>
+            </div>
           </div>
 
-          {/* Navigation Items */}
-          <nav className="space-y-1.5">
+          {/* Navigation Section */}
+          <div className="space-y-2">
+            <div className="px-2">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                Danh Mục Tương Tác
+              </div>
+            </div>
+
+            {/* Navigation Items */}
+            <nav className="space-y-1.5">
             {/* Tab 1: Sảnh Chung */}
             <button
               type="button"
@@ -856,6 +1084,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                 activeTab === 'plaza' ? 'bg-white/20 text-white' : 'bg-blue-50 dark:bg-blue-950 text-[#2E68FF]'
               }`}>Nổi Bật</span>
             </button>
+
 
             {/* Tab 2: Tìm Nhóm */}
             <button
@@ -939,13 +1168,14 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
               }`}>Top 10</span>
             </button>
           </nav>
+        </div>
 
           {/* SIDEBAR QUICK ACTIONS & STATS */}
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
-            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200/80 dark:border-blue-800/50 space-y-2">
+            <div className="p-3.5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-black text-[#1B1F2E] dark:text-white flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" /> Ghép Nói 1-1 Nhanh
+                  <Zap className="w-3.5 h-3.5 text-[#2E68FF] fill-[#2E68FF]" /> Ghép Nói 1-1 Nhanh
                 </span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
               </div>
@@ -955,9 +1185,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
               <button
                 type="button"
                 onClick={handleStartQuickMatch}
-                className="w-full mt-1 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                className="w-full mt-1 py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-700 dark:text-slate-200 hover:text-white dark:hover:text-white font-extrabold text-[11px] flex items-center justify-center gap-1.5 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 group"
               >
-                <Zap className="w-3.5 h-3.5 fill-white" />
+                <Zap className="w-3.5 h-3.5 fill-slate-600 dark:fill-slate-300 group-hover:fill-white text-slate-600 dark:text-slate-300 group-hover:text-white transition-colors" />
                 <span>Bắt Đầu Ghép Ngay</span>
               </button>
             </div>
@@ -982,20 +1212,20 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Quick Match Showcase */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200/80 dark:border-amber-800/40 space-y-3 flex flex-col justify-between">
+            <div className="p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between transition-all shadow-xs hover:shadow-md">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                  <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2E68FF] dark:text-[#5B8CFF]">
                     Quick Voice 1-1
                   </span>
-                  <span className="text-xs text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" /> 115 Online
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-[#2E68FF]" /> 115 Online
                   </span>
                 </div>
-                <h3 className="font-extrabold text-base text-amber-950 dark:text-amber-100">
+                <h3 className="font-extrabold text-base text-[#1B1F2E] dark:text-white">
                   ⚡ Ghép Đôi Luyện Nói 1-1 Ngẫu Nhiên
                 </h3>
-                <p className="text-xs text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+                <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1] leading-relaxed">
                   Ghép với bạn học rảnh trong 10-15 phút. Có thẻ AI gợi ý câu hỏi để không bao giờ bí từ.
                 </p>
               </div>
@@ -1003,66 +1233,86 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
               <button
                 type="button"
                 onClick={handleStartQuickMatch}
-                className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95"
+                className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
               >
-                <Zap className="w-4 h-4 fill-white" />
+                <Zap className="w-4 h-4 fill-slate-700 dark:fill-slate-300 group-hover:fill-white text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors" />
                 <span>Tìm Bạn Luyện Nói Ngay</span>
               </button>
             </div>
 
             {/* Public Game Night */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/20 border border-purple-200/80 dark:border-purple-800/40 space-y-3 flex flex-col justify-between">
+            <div 
+              onClick={() => {
+                setPublicRoomsCategory('game');
+                setActiveTab('public-rooms');
+              }}
+              className="p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between cursor-pointer transition-all shadow-xs hover:shadow-md"
+            >
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-600 text-white">
+                  <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300">
                     Sự Kiện Đêm
                   </span>
-                  <span className="text-xs text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> 21:30 Tối Nay
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-[#2E68FF]" /> 21:30 Tối Nay
                   </span>
                 </div>
-                <h3 className="font-extrabold text-base text-purple-950 dark:text-purple-100">
+                <h3 className="font-extrabold text-base text-[#1B1F2E] dark:text-white">
                   🎮 Sảnh Game Đêm: Taboo & Nối Từ
                 </h3>
-                <p className="text-xs text-purple-800/80 dark:text-purple-300/80 leading-relaxed">
-                  Trò chơi tiếng Anh tương tác có thưởng x2 điểm chuỗi nhóm do AI MC làm trọng tài.
+                <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1] leading-relaxed">
+                  Trò chơi tiếng Anh tương tác có thưởng x2 điểm chuỗi nhóm do AI MC làm trọng tài. Xem các phòng Public đang mở.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setActiveTab('live-room')}
-                className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPublicRoomsCategory('game');
+                  setActiveTab('public-rooms');
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
               >
-                <Gamepad2 className="w-4 h-4" />
-                <span>Vào Phòng Game Nhóm</span>
+                <Gamepad2 className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors" />
+                <span>Vào Xem Danh Sách Phòng Game ({publicRooms.filter(r => r.category === 'game').length})</span>
               </button>
             </div>
 
             {/* Daily Discussion */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/20 border border-blue-200/80 dark:border-blue-800/40 space-y-3 flex flex-col justify-between">
+            <div 
+              onClick={() => {
+                setPublicRoomsCategory('discussion');
+                setActiveTab('public-rooms');
+              }}
+              className="p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-3 flex flex-col justify-between cursor-pointer transition-all shadow-xs hover:shadow-md"
+            >
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500 text-white flex items-center gap-1">
+                  <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center gap-1">
                     <Radio className="w-3 h-3 animate-ping" /> Live Topic
                   </span>
-                  <span className="text-xs text-blue-700 dark:text-blue-300 font-bold">28 Tham gia</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">28 Tham gia</span>
                 </div>
-                <h3 className="font-extrabold text-base text-blue-950 dark:text-blue-100">
+                <h3 className="font-extrabold text-base text-[#1B1F2E] dark:text-white">
                   🗣️ Topic Tranh Luận: "AI in Education"
                 </h3>
-                <p className="text-xs text-blue-800/80 dark:text-blue-300/80 leading-relaxed">
-                  Luyện tư duy phản biện & sử dụng từ vựng nâng cao C1 theo câu hỏi gợi ý từ hệ thống.
+                <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1] leading-relaxed">
+                  Luyện tư duy phản biện & sử dụng từ vựng nâng cao C1 theo câu hỏi gợi ý từ hệ thống. Xin duyệt vào phòng.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setActiveTab('live-room')}
-                className="w-full py-2.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPublicRoomsCategory('discussion');
+                  setActiveTab('public-rooms');
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 active:scale-95 group"
               >
-                <Mic className="w-4 h-4" />
-                <span>Bật Mic Tham Gia Luận Điểm</span>
+                <Mic className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors" />
+                <span>Xem Phòng Topic & Xin Duyệt Mic ({publicRooms.filter(r => r.category === 'discussion').length})</span>
               </button>
             </div>
           </div>
@@ -1170,9 +1420,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                   onClick={() => {
                     alert(`Đã gửi đơn xin gia nhập nhóm "${squad.name}"! Trưởng nhóm sẽ xem xét và phê duyệt trong phần Quản lý.`);
                   }}
-                  className="w-full py-2.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
+                  className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all border border-slate-200 dark:border-slate-700 group"
                 >
-                  <UserPlus className="w-4 h-4" />
+                  <UserPlus className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors" />
                   <span>Nộp Đơn Gia Nhập Nhóm</span>
                 </button>
               </div>
@@ -1216,7 +1466,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                 <button
                   type="button"
                   onClick={() => setIsCreateRoomOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors"
+                  className="px-4 py-2 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors"
                 >
                   <Radio className="w-4 h-4" />
                   <span>Mở Phòng Call Luyện Nói</span>
@@ -1780,188 +2030,593 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
       {activeTab === 'live-room' && (
         <div className="space-y-6">
           
-          <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-[#0F172A] to-purple-950 text-white shadow-2xl border border-slate-800 space-y-6">
-            
-            {/* Live Room Top Bar */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-3.5 h-3.5 rounded-full bg-red-500 animate-ping" />
+          {/* PHASE 1: LOBBY MODE (SẢNH CHỜ TRƯỚC KHI BẬT CALL) */}
+          {!isLiveCallActive ? (
+            <div className="p-6 rounded-3xl bg-slate-900 text-white shadow-2xl border border-slate-800 space-y-6 animate-in fade-in duration-300">
+              
+              {/* Lobby Header */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
                 <div>
-                  <h3 className="font-black text-lg text-white flex items-center gap-2">
-                    <span>{activeRoomTitle}</span>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/30">
-                      AI MC Active 🤖
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-black uppercase tracking-wider border border-amber-500/30 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                      Sảnh Chờ Phòng Call (Lobby)
                     </span>
-                  </h3>
-                  <p className="text-xs text-slate-400">Trợ lý OpenRouter AI hỗ trợ gợi ý từ vựng & sửa lỗi trực tiếp</p>
+                    <span className="text-xs text-slate-400 font-bold">• Trạng thái: Chưa Bật Call</span>
+                  </div>
+                  <h2 className="text-2xl font-black text-white tracking-tight mt-1.5">
+                    {activeRoomTitle}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Chủ đề hiện tại: <strong className="text-purple-300">{customLobbyTopic}</strong>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateRoomOpen(true)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 flex items-center gap-1.5 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Tạo Phòng Khác</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Lobby Main Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* Left Column (7 cols): Topic & Game Setup Panel */}
+                <div className="lg:col-span-7 space-y-5">
+                  
+                  {/* Panel 1: Setup Topic */}
+                  <div className="p-5 rounded-2xl bg-slate-800/70 border border-slate-700/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <span>Thiết Lập Chủ Đề Thảo Luận Ban Đầu</span>
+                      </h4>
+                      <span className="text-[11px] text-purple-300 font-bold">AI MC Ready 🤖</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={customLobbyTopic}
+                        onChange={(e) => setCustomLobbyTopic(e.target.value)}
+                        placeholder="Nhập hoặc đổi chủ đề thảo luận..."
+                        className="flex-1 p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-semibold text-white focus:outline-none focus:border-purple-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGenerateNewAiTopic}
+                        disabled={isGeneratingAiTopic}
+                        className="px-3.5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs shrink-0 flex items-center gap-1.5 transition-colors"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingAiTopic ? 'animate-spin' : ''}`} />
+                        <span>Xác Nhận & Sinh Thẻ AI</span>
+                      </button>
+                    </div>
+
+                    {/* Quick topic presets */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-[11px] text-slate-400 font-bold mr-1">Gợi ý nhanh:</span>
+                      {[
+                        'Topic Environment & Climate Change',
+                        'Technology & Artificial Intelligence',
+                        'Travel Memories & Culture',
+                        'Work-Life Balance'
+                      ].map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setCustomLobbyTopic(t)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                            customLobbyTopic === t
+                              ? 'bg-purple-500/20 border-purple-500 text-purple-300'
+                              : 'bg-slate-900/60 border-slate-700/80 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Panel 2: Select 1 of 3 Call Modes */}
+                  <div className="p-5 rounded-2xl bg-slate-800/70 border border-slate-700/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                        <Gamepad2 className="w-4 h-4 text-amber-400" />
+                        <span>Chế Độ Hoạt Động Trong Call (Chọn 1 Trong 3)</span>
+                      </h4>
+                      <span className="text-xs text-purple-300 font-bold">Chế độ: {activeGame === 'topic' ? 'Nói theo chủ đề' : activeGame === 'word-chain' ? 'Nối từ tiếng Anh' : 'Đoán từ Taboo'}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Mode 1: Topic Discussion */}
+                      <button
+                        type="button"
+                        onClick={() => setActiveGame('topic')}
+                        className={`p-3.5 rounded-xl text-xs text-left border transition-all space-y-1.5 relative ${
+                          activeGame === 'topic'
+                            ? 'bg-purple-500/20 border-purple-500 ring-2 ring-purple-500/40 text-purple-300 font-extrabold'
+                            : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-600'
+                        }`}
+                      >
+                        {activeGame === 'topic' && (
+                          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-purple-500 text-white font-black text-[9px]">
+                            ĐÃ CHỌN
+                          </span>
+                        )}
+                        <p className="font-extrabold text-sm">💬 Nói Chuyện Theo Chủ Đề</p>
+                        <p className="text-[11px] text-slate-400 font-normal leading-snug">
+                          Thảo luận IELTS/Giao tiếp. AI MC gợi ý từ vựng & sửa lỗi trực tiếp.
+                        </p>
+                      </button>
+
+                      {/* Mode 2: Word Chain */}
+                      <button
+                        type="button"
+                        onClick={() => setActiveGame('word-chain')}
+                        className={`p-3.5 rounded-xl text-xs text-left border transition-all space-y-1.5 relative ${
+                          activeGame === 'word-chain'
+                            ? 'bg-amber-500/20 border-amber-500 ring-2 ring-amber-500/40 text-amber-300 font-extrabold'
+                            : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-600'
+                        }`}
+                      >
+                        {activeGame === 'word-chain' && (
+                          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[9px]">
+                            ĐÃ CHỌN
+                          </span>
+                        )}
+                        <p className="font-extrabold text-sm">🔤 Nối Từ Tiếng Anh</p>
+                        <p className="text-[11px] text-slate-400 font-normal leading-snug">
+                          Nối chữ cái cuối của từ trước. Luyện vốn từ cực nhanh (+15 Pts/từ).
+                        </p>
+                      </button>
+
+                      {/* Mode 3: Taboo */}
+                      <button
+                        type="button"
+                        onClick={() => setActiveGame('taboo')}
+                        className={`p-3.5 rounded-xl text-xs text-left border transition-all space-y-1.5 relative ${
+                          activeGame === 'taboo'
+                            ? 'bg-emerald-500/20 border-emerald-500 ring-2 ring-emerald-500/40 text-emerald-300 font-extrabold'
+                            : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-600'
+                        }`}
+                      >
+                        {activeGame === 'taboo' && (
+                          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-black text-[9px]">
+                            ĐÃ CHỌN
+                          </span>
+                        )}
+                        <p className="font-extrabold text-sm">🤫 Game Đoán Từ Taboo</p>
+                        <p className="text-[11px] text-slate-400 font-normal leading-snug">
+                          Mô tả từ bí mật mà KHÔNG dùng từ cấm. Rèn phản xạ giải thích (+25 Pts).
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Right Column (5 cols): Lobby Participants & Sound Test */}
+                <div className="lg:col-span-5 space-y-5">
+                  
+                  {/* Lobby Members List */}
+                  <div className="p-5 rounded-2xl bg-slate-800/70 border border-slate-700/80 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                        <Users className="w-4 h-4 text-emerald-400" />
+                        <span>Thành Viên Ở Sảnh Chờ (3/4)</span>
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                        Chờ Bạn Bật Call
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {[
+                        { name: 'Kỳ Duyên (Bạn - Host)', role: 'Người khởi xướng', avatar: 'KD', isAi: false },
+                        { name: 'Minh Trí', role: 'Thành viên Squad', avatar: 'MT', isAi: false },
+                        { name: 'Bảo Ngọc', role: 'Thành viên Squad', avatar: 'BN', isAi: false },
+                        { name: 'AI MC Assistant 🤖', role: 'Trợ lý AI Đồng Hành', avatar: 'AI', isAi: true }
+                      ].map((m, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 rounded-xl bg-slate-900/80 border border-slate-700/80 flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs border ${
+                              m.isAi ? 'bg-purple-600 text-white border-purple-400' : 'bg-blue-600 text-white border-blue-400'
+                            }`}>
+                              {m.avatar}
+                            </div>
+                            <div>
+                              <h5 className="font-bold text-xs text-white">{m.name}</h5>
+                              <p className="text-[10px] text-slate-400">{m.role}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-extrabold text-[10px] border border-emerald-500/30 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Sẵn sàng
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Test Mic Box */}
+                    <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                          <Mic className="w-3.5 h-3.5 text-blue-400" />
+                          Kiểm tra Micro & Âm thanh
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsMicTesting(!isMicTesting)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                            isMicTesting
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          {isMicTesting ? '🎙️ Đang Test Mic (Tốt)' : 'Thử Mic Ban Đầu'}
+                        </button>
+                      </div>
+
+                      {isMicTesting && (
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <div className="w-2 h-4 rounded bg-emerald-500 animate-pulse" />
+                          <div className="w-2 h-6 rounded bg-emerald-500 animate-pulse delay-75" />
+                          <div className="w-2 h-8 rounded bg-emerald-500 animate-pulse delay-100" />
+                          <div className="w-2 h-5 rounded bg-emerald-500 animate-pulse delay-150" />
+                          <span className="text-[10px] text-emerald-400 font-bold ml-2">
+                            Tín hiệu âm thanh bình thường!
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* GIANT CALL CTA BUTTON */}
+              <div className="pt-2 text-center">
                 <button
                   type="button"
-                  onClick={() => setIsCreateRoomOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1.5 border border-slate-700"
+                  onClick={() => setIsLiveCallActive(true)}
+                  className="w-full sm:w-auto px-10 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-purple-600 hover:from-emerald-600 hover:to-purple-700 text-white font-black text-base flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/25 transition-transform active:scale-98 mx-auto"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Tạo Phòng Học Mới</span>
+                  <PhoneCall className="w-6 h-6 animate-bounce" />
+                  <span>BẬT MIC & THAM GIA CALL NGAY</span>
                 </button>
+                <p className="text-xs text-slate-400 mt-2">
+                  Bấm nút trên để bắt đầu cuộc gọi thoại trực tiếp cùng các bạn học & Trợ lý AI MC!
+                </p>
+              </div>
 
-                {!isLiveCallActive ? (
+            </div>
+          ) : (
+            
+            /* PHASE 2: ACTIVE CALL MODE (ĐANG TRONG CUỘC GỌI MỞ MIC THẬT) */
+            <div className={
+              isCallMaximized
+                ? "fixed inset-0 z-[100] p-4 sm:p-8 bg-slate-950/98 text-white shadow-2xl overflow-y-auto space-y-6 flex flex-col justify-start backdrop-blur-2xl animate-in zoom-in-95 duration-200"
+                : "p-6 rounded-3xl bg-slate-900 text-white shadow-2xl border border-slate-800 space-y-6 animate-in fade-in duration-300"
+            }>
+              
+              {/* Active Call Header & Top Live Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="px-3 py-1 rounded-full bg-red-600 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-red-600/30 shrink-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                    <span>LIVE 🔴 08:24</span>
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg text-white flex items-center gap-2">
+                      <span>{activeRoomTitle}</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/30 text-purple-300 border border-purple-400/30 font-bold">
+                        AI MC Active 🤖
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Đang thảo luận: <strong className="text-emerald-400">{customLobbyTopic}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Main Call Action Bar */}
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setIsLiveCallActive(true)}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                    onClick={() => setMicOn(!micOn)}
+                    className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors border ${
+                      micOn
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                        : 'bg-red-500/20 border-red-500 text-red-300'
+                    }`}
                   >
-                    <PhoneCall className="w-4 h-4" />
-                    <span>Bật Mic / Tham Gia Call</span>
+                    {micOn ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4 text-red-400" />}
+                    <span>{micOn ? 'Mic: Bật' : 'Mic: Tắt'}</span>
                   </button>
-                ) : (
+
+                  <button
+                    type="button"
+                    onClick={() => setCamOn(!camOn)}
+                    className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors border ${
+                      camOn
+                        ? 'bg-blue-500/20 border-blue-500 text-blue-300'
+                        : 'bg-slate-800 border-slate-700 text-slate-400'
+                    }`}
+                  >
+                    {camOn ? <Video className="w-4 h-4 text-blue-400" /> : <VideoOff className="w-4 h-4 text-slate-400" />}
+                    <span>{camOn ? 'Cam: Bật' : 'Cam: Tắt'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHandRaised(!handRaised)}
+                    className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors border ${
+                      handRaised
+                        ? 'bg-amber-500 text-slate-950 font-black border-amber-400'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    <Hand className="w-4 h-4" />
+                    <span>{handRaised ? 'Đang Giơ Tay ✋' : 'Giơ Tay Phát Biểu'}</span>
+                  </button>
+
+                  {/* Toggle Fullscreen / Expand Mode */}
+                  <button
+                    type="button"
+                    onClick={() => setIsCallMaximized(!isCallMaximized)}
+                    className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all border ${
+                      isCallMaximized
+                        ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/50'
+                        : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                    }`}
+                    title={isCallMaximized ? "Thu nhỏ giao diện cuộc gọi" : "Phóng to toàn màn hình cuộc gọi"}
+                  >
+                    {isCallMaximized ? <Minimize2 className="w-4 h-4 text-purple-200" /> : <Maximize2 className="w-4 h-4 text-purple-300" />}
+                    <span>{isCallMaximized ? 'Thu Nhỏ' : 'Phóng To Call'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleFinishCallAndSummarize}
-                    className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-red-600/20 active:scale-95 transition-all"
+                    className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-red-600/30 transition-all active:scale-95 ml-1"
                   >
                     <PhoneCall className="w-4 h-4 rotate-135" />
-                    <span>Rời Phòng & Nhận Tóm Tắt AI</span>
+                    <span>Rời Call & Nhận Tóm Tắt AI</span>
                   </button>
-                )}
+                </div>
               </div>
-            </div>
 
-            {/* Simulated Voice Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {[
-                { name: 'Kỳ Duyên (Bạn)', isTalking: isLiveCallActive && micOn, avatar: 'KD' },
-                { name: 'Minh Trí', isTalking: isLiveCallActive, avatar: 'MT' },
-                { name: 'Bảo Ngọc', isTalking: false, avatar: 'BN' },
-                { name: 'AI MC Assistant 🤖', isTalking: isLiveCallActive, avatar: 'AI', isAi: true }
-              ].map((m, idx) => (
-                <div
-                  key={idx}
-                  className={`p-4 rounded-2xl border transition-all text-center space-y-2 relative ${
-                    m.isTalking
-                      ? 'bg-purple-950/60 border-purple-500 shadow-lg shadow-purple-500/20 ring-2 ring-purple-500/50'
-                      : 'bg-slate-800/60 border-slate-700'
-                  }`}
-                >
-                  <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center font-black text-base border-2 shadow-md ${
-                    m.isAi ? 'bg-gradient-to-tr from-purple-500 to-indigo-600 text-white border-purple-400' : 'bg-blue-600 text-white border-blue-400'
-                  }`}>
-                    {m.avatar}
-                  </div>
-
-                  <div>
-                    <h5 className="font-bold text-xs text-white truncate">{m.name}</h5>
-                    <p className="text-[10px] text-slate-400">
-                      {m.isTalking ? (
-                        <span className="text-emerald-400 font-bold flex items-center justify-center gap-1">
-                          <Volume2 className="w-3 h-3 animate-bounce" /> Đang phát biểu...
-                        </span>
-                      ) : (
-                        'Đang lắng nghe'
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* AI Topic Generator & Games */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
-              <div className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-purple-400" />
-                    <span>Thẻ Gợi Ý Thảo Luận AI (Topic Cards)</span>
-                  </h4>
-
-                  <button
-                    type="button"
-                    onClick={handleGenerateNewAiTopic}
-                    disabled={isGeneratingAiTopic}
-                    className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
+              {/* Voice / Video Grid Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { name: 'Kỳ Duyên (Bạn)', isTalking: micOn, avatar: 'KD', hand: handRaised, isAi: false },
+                  { name: 'Minh Trí', isTalking: true, avatar: 'MT', hand: false, isAi: false },
+                  { name: 'Bảo Ngọc', isTalking: false, avatar: 'BN', hand: false, isAi: false },
+                  { name: 'AI MC Assistant 🤖', isTalking: true, avatar: 'AI', hand: false, isAi: true }
+                ].map((m, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-4 rounded-2xl border transition-all text-center space-y-2 relative ${
+                      m.isTalking
+                        ? 'bg-purple-950/70 border-purple-500 shadow-lg shadow-purple-500/20 ring-2 ring-purple-500/50'
+                        : 'bg-slate-800/60 border-slate-700'
+                    }`}
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingAiTopic ? 'animate-spin' : ''}`} />
-                    <span>Sinh Thẻ Mới</span>
-                  </button>
-                </div>
+                    {m.hand && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-extrabold text-[10px] animate-bounce">
+                        ✋ Xin phát biểu
+                      </span>
+                    )}
 
-                <div className="space-y-2 text-xs text-slate-200">
-                  {aiTopicCards.map((card, i) => (
-                    <div key={i} className="p-3 rounded-xl bg-slate-900/80 border border-slate-700 leading-relaxed">
-                      {card}
+                    <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center font-black text-base border-2 shadow-md ${
+                      m.isAi ? 'bg-gradient-to-tr from-purple-500 to-indigo-600 text-white border-purple-400' : 'bg-blue-600 text-white border-blue-400'
+                    }`}>
+                      {m.avatar}
                     </div>
-                  ))}
-                </div>
+
+                    <div>
+                      <h5 className="font-bold text-xs text-white truncate">{m.name}</h5>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {m.isTalking ? (
+                          <span className="text-emerald-400 font-bold flex items-center justify-center gap-1">
+                            <Volume2 className="w-3 h-3 animate-bounce" /> Đang phát biểu...
+                          </span>
+                        ) : (
+                          'Đang lắng nghe'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              <div className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+              {/* Interactive Mode Section (3 distinct modes) */}
+              <div className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-4">
+                
+                {/* 3-Mode Tab Switcher Header */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
+                  <div className="flex items-center gap-2">
                     <Gamepad2 className="w-4 h-4 text-amber-400" />
-                    <span>Trò Chơi Tương Tác Nhóm</span>
-                  </h4>
-                  <span className="text-xs text-amber-400 font-bold">Điểm game: {gameScore} pts</span>
+                    <h4 className="font-extrabold text-sm text-white">Chế Độ Hoạt Động Call</h4>
+                  </div>
+
+                  {/* 3-Option Tab Switcher */}
+                  <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-700 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setActiveGame('topic')}
+                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
+                        activeGame === 'topic' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span>💬 Nói Theo Chủ Đề</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveGame('word-chain')}
+                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
+                        activeGame === 'word-chain' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span>🔤 Nối Từ Tiếng Anh</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveGame('taboo')}
+                      className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
+                        activeGame === 'taboo' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span>🤫 Đoán Từ Taboo</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveGame('word-chain');
-                      setGameScore(prev => prev + 10);
-                    }}
-                    className={`p-3 rounded-xl text-xs font-bold text-left border transition-all space-y-1 ${
-                      activeGame === 'word-chain'
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                        : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-600'
-                    }`}
-                  >
-                    <p className="font-extrabold">🔤 Nối Từ Tiếng Anh</p>
-                    <p className="text-[10px] text-slate-400 font-normal">Nối chữ cái cuối của từ trước</p>
-                  </button>
+                {/* MODE 1: Nói chuyện theo chủ đề (Topic Discussion) */}
+                {activeGame === 'topic' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Bot className="w-4 h-4 text-purple-400" />
+                        <span className="font-extrabold text-xs text-purple-300 uppercase tracking-wider">
+                          Thẻ Gợi Ý Thảo Luận IELTS & Giao Tiếp
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleGenerateNewAiTopic}
+                        disabled={isGeneratingAiTopic}
+                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingAiTopic ? 'animate-spin' : ''}`} />
+                        <span>Sinh Thẻ AI Mới</span>
+                      </button>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveGame('taboo');
-                      setGameScore(prev => prev + 15);
-                    }}
-                    className={`p-3 rounded-xl text-xs font-bold text-left border transition-all space-y-1 ${
-                      activeGame === 'taboo'
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                        : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-600'
-                    }`}
-                  >
-                    <p className="font-extrabold">🤫 Game Đoán Từ Taboo</p>
-                    <p className="text-[10px] text-slate-400 font-normal">Mô tả từ mà không dùng từ cấm</p>
-                  </button>
-                </div>
-
-                {activeGame !== 'none' && (
-                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-1.5 animate-in fade-in">
-                    <p className="font-bold text-amber-400">⚡ Đang mở Game: {activeGame === 'word-chain' ? 'Nối Từ Tiếng Anh' : 'Game Đoán Từ Taboo'}</p>
-                    <p className="text-[11px] text-slate-300">
-                      Từ bắt đầu: <strong className="text-white">"INNOVATION"</strong> {'->'} Thành viên tiếp theo bật mic nói từ bắt đầu bằng chữ <strong>N</strong>!
-                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {aiTopicCards.map((card, i) => (
+                        <div key={i} className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-200 leading-relaxed space-y-1">
+                          <span className="text-[10px] text-purple-400 font-extrabold uppercase">Thẻ Gợi Ý #{i + 1}</span>
+                          <p>{card}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </div>
-            </div>
 
-            {/* AI Summary Box */}
-            {aiSummary && (
-              <div className="p-5 rounded-2xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-200 text-xs leading-relaxed space-y-2 animate-in fade-in">
-                <div className="flex items-center gap-2 font-black text-sm text-emerald-400">
-                  <Sparkles className="w-4 h-4" />
-                  <span>Bản Nhận Xét & Tóm Tắt Buổi Học Từ AI MC:</span>
+                {/* MODE 2: Nối từ tiếng Anh (Word Chain Game) */}
+                {activeGame === 'word-chain' && (
+                  <div className="space-y-3 animate-in fade-in duration-200">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-300 font-bold">Trò chơi: Nối Từ Tiếng Anh (Word Chain)</span>
+                      <span className="text-amber-400 font-extrabold">Điểm tích lũy: +{gameScore} Pts</span>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 space-y-2">
+                      <div className="flex justify-between items-center text-[11px] text-slate-400">
+                        <span>Lượt chơi hiện tại: <strong className="text-amber-400">{activeTurnPlayer}</strong></span>
+                        <span>Bắt đầu bằng chữ cái: <strong className="text-emerald-400 text-base font-black uppercase">{wordChainHistory[wordChainHistory.length - 1].slice(-1)}</strong></span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[11px] text-slate-400 font-bold">Chuỗi từ đã nối:</span>
+                        {wordChainHistory.map((w, idx) => (
+                          <span key={idx} className="px-2.5 py-1 rounded bg-slate-800 text-white font-bold text-[11px] border border-slate-700">
+                            {w} {idx < wordChainHistory.length - 1 ? '➔' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleWordChainSubmit} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={wordChainInput}
+                        onChange={(e) => setWordChainInput(e.target.value)}
+                        placeholder={`Nhập từ tiếng Anh bắt đầu bằng chữ '${wordChainHistory[wordChainHistory.length - 1].slice(-1)}'...`}
+                        className="flex-1 p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-white uppercase focus:outline-none focus:border-amber-500"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs shrink-0 transition-colors"
+                      >
+                        Gửi Từ Nối (+15 Pts)
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* MODE 3: Game Đoán từ Taboo */}
+                {activeGame === 'taboo' && (
+                  <div className="space-y-3 animate-in fade-in duration-200">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-300 font-bold">Trò chơi: Đoán Từ Taboo (Taboo Word Game)</span>
+                      <span className="text-emerald-400 font-extrabold">Điểm tích lũy: +{gameScore} Pts</span>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-xs space-y-2">
+                      <div className="flex justify-between items-center text-amber-400 font-bold">
+                        <span>Từ bí mật cần mô tả bằng tiếng Anh: <strong className="text-white underline text-sm">TELESCOPE</strong></span>
+                        <span className="text-emerald-400 font-bold">+25 Pts</span>
+                      </div>
+                      <p className="text-[11px] text-red-400 font-bold">
+                        ⚠️ Các từ CẤM KHÔNG ĐƯỢC NÓI HOẶC VIẾT: <span className="text-slate-300 font-normal">Star, Space, See, Night, Glass</span>
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleTabooSubmit} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={tabooGuessInput}
+                        onChange={(e) => setTabooGuessInput(e.target.value)}
+                        placeholder="Nhập câu trả lời/từ đoán của bạn (VD: Telescope)..."
+                        className="flex-1 p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs shrink-0 transition-colors"
+                      >
+                        Gửi Đoán Từ (+25 Pts)
+                      </button>
+                    </form>
+
+                    {tabooFeedback && (
+                      <p className="text-xs font-bold text-amber-300 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                        {tabooFeedback}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+              </div>
+
+              {/* AI Summary Box */}
+              {aiSummary && (
+                <div className="p-5 rounded-2xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-200 text-xs leading-relaxed space-y-2 animate-in fade-in">
+                  <div className="flex items-center gap-2 font-black text-sm text-emerald-400">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Bản Nhận Xét & Tóm Tắt Buổi Học Từ AI MC:</span>
+                  </div>
+                  <p className="whitespace-pre-wrap font-sans text-emerald-100">{aiSummary}</p>
                 </div>
-                <p className="whitespace-pre-wrap font-sans text-emerald-100">{aiSummary}</p>
-              </div>
-            )}
+              )}
 
-          </div>
+            </div>
+          )}
 
         </div>
       )}
@@ -2009,6 +2664,170 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* TAB 6: PUBLIC ROOMS DIRECTORY (SIDE-BY-SIDE WITH SIDEBAR) */}
+      {activeTab === 'public-rooms' && (
+        <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm animate-in fade-in duration-200">
+          
+          {/* HEADER WITH BACK TO LOBBY BUTTON */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setActiveTab('plaza')}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all active:scale-95 shadow-2xs cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-[#2E68FF]" />
+                <span>Quay lại Sảnh</span>
+              </button>
+
+              <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-black flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 animate-ping text-emerald-500" />
+                <span>{publicRooms.length} Phòng Public Đang Live</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Category Filter Tabs */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPublicRoomsCategory('all')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                  publicRoomsCategory === 'all'
+                    ? 'bg-[#2E68FF] text-white shadow-md'
+                    : 'bg-slate-100 dark:bg-[#0F172A] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Tất Cả Phòng ({publicRooms.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPublicRoomsCategory('game')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                  publicRoomsCategory === 'game'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'bg-slate-100 dark:bg-[#0F172A] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Gamepad2 className="w-3.5 h-3.5" />
+                <span>🎮 Phòng Game Nhóm ({publicRooms.filter(r => r.category === 'game').length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPublicRoomsCategory('discussion')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                  publicRoomsCategory === 'discussion'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-slate-100 dark:bg-[#0F172A] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Mic className="w-3.5 h-3.5" />
+                <span>🗣️ Phòng Tranh Luận Topic ({publicRooms.filter(r => r.category === 'discussion').length})</span>
+              </button>
+            </div>
+          </div>
+
+            {/* LIST OF PUBLIC ROOMS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {publicRooms
+                .filter(room => publicRoomsCategory === 'all' || room.category === publicRoomsCategory)
+                .map((room) => {
+                  const isFull = room.activeParticipants >= room.maxParticipants;
+                  return (
+                    <div
+                      key={room.id}
+                      className="p-5 rounded-2xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800/80 hover:border-blue-400 dark:hover:border-blue-600 transition-all space-y-4 flex flex-col justify-between shadow-2xs hover:shadow-md"
+                    >
+                      <div className="space-y-3">
+                        {/* Header Badges */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                            room.category === 'game'
+                              ? 'bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-300 border border-purple-200/50 dark:border-purple-800/40'
+                              : 'bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40'
+                          }`}>
+                            {room.category === 'game' ? <Gamepad2 className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                            {room.category === 'game' ? '🎮 Game Room' : '🗣️ Discussion'}
+                          </span>
+
+                          <span className={`text-[11px] font-extrabold flex items-center gap-1 px-2 py-0.5 rounded-full ${
+                            isFull ? 'bg-red-100 dark:bg-red-950/80 text-red-600' : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            <Users className="w-3.5 h-3.5" />
+                            {room.activeParticipants}/{room.maxParticipants} {isFull ? '(Full)' : 'Sẵn Sàng'}
+                          </span>
+                        </div>
+
+                        {/* Title & Host Info */}
+                        <div>
+                          <h4 className="font-extrabold text-base text-[#1B1F2E] dark:text-white leading-snug">
+                            {room.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+                            <span>Chủ phòng:</span>
+                            <strong className="text-slate-800 dark:text-slate-200 font-bold">{room.hostName}</strong>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-black">{room.level}</span>
+                          </p>
+                        </div>
+
+                        {/* Topic Tag */}
+                        <div className="p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200/60 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 flex items-start gap-2">
+                          <Volume2 className="w-4 h-4 text-[#2E68FF] shrink-0 mt-0.5" />
+                          <span className="font-semibold">{room.topic}</span>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <div>
+                        {room.requestStatus === 'idle' && (
+                          <button
+                            type="button"
+                            disabled={isFull}
+                            onClick={() => handleRequestJoinPublicRoom(room.id)}
+                            className={`w-full py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all active:scale-95 group ${
+                              isFull
+                                ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-[#2E68FF] dark:hover:bg-[#2E68FF] text-slate-800 dark:text-slate-100 hover:text-white dark:hover:text-white border border-slate-200 dark:border-slate-700 cursor-pointer'
+                            }`}
+                          >
+                            <UserPlus className={`w-4 h-4 ${isFull ? '' : 'text-slate-700 dark:text-slate-300 group-hover:text-white transition-colors'}`} />
+                            <span>{isFull ? 'Phòng Đã Đầy' : 'Yêu Cầu Tham Gia Call'}</span>
+                          </button>
+                        )}
+
+                        {room.requestStatus === 'pending' && (
+                          <button
+                            type="button"
+                            disabled
+                            className="w-full py-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/50 font-black text-xs flex items-center justify-center gap-2 cursor-wait"
+                          >
+                            <Clock className="w-4 h-4 animate-spin text-amber-500" />
+                            <span>⏳ Đang Chờ Chủ Phòng Duyệt...</span>
+                          </button>
+                        )}
+
+                        {room.requestStatus === 'approved' && (
+                          <button
+                            type="button"
+                            onClick={() => handleEnterApprovedPublicRoom(room)}
+                            className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 animate-pulse"
+                          >
+                            <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                            <span>🎉 Chủ Phòng Đã Duyệt - Vào Phòng Ngay!</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
         </div>
       )}
         </main>
@@ -2183,7 +3002,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
 
             <div>
               <h3 className="font-extrabold text-lg text-[#1B1F2E] dark:text-white flex items-center gap-2">
-                <Radio className="w-5 h-5 text-purple-600" />
+                <Radio className="w-5 h-5 text-[#2E68FF]" />
                 <span>Tạo Phòng Học Group Call Mới</span>
               </h3>
               <p className="text-xs text-slate-500 mt-1">
@@ -2217,6 +3036,21 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
                   placeholder="VD: Artificial Intelligence & Future Jobs"
                   className="w-full p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs text-[#1B1F2E] dark:text-white font-semibold"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Chế Độ Hoạt Động Ban Đầu (Chọn 1 Trong 3)
+                </label>
+                <select
+                  value={selectedRoomActivity}
+                  onChange={(e: any) => setSelectedRoomActivity(e.target.value)}
+                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white"
+                >
+                  <option value="topic">💬 1. Nói chuyện theo chủ đề (Thảo luận AI MC)</option>
+                  <option value="word-chain">🔤 2. Nối từ tiếng Anh (Game Word Chain)</option>
+                  <option value="taboo">🤫 3. Đoán từ Taboo (Game Taboo Words)</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -2260,7 +3094,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
               </button>
               <button
                 type="submit"
-                className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md"
+                className="px-6 py-2.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs shadow-md"
               >
                 Mở Phòng Call Ngay
               </button>
@@ -2520,95 +3354,6 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
               >
                 <Sparkles className="w-4 h-4 text-amber-300" />
                 <span>Chia Sẻ & Tạo Bài Tập AI</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* MODAL: ADD TASK */}
-      {isAddTaskOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <form onSubmit={handleCreateTask} className="bg-white dark:bg-[#1E293B] w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5 relative">
-            <button
-              type="button"
-              onClick={() => setIsAddTaskOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div>
-              <h3 className="font-extrabold text-lg text-[#1B1F2E] dark:text-white flex items-center gap-2">
-                <CheckSquare className="w-5 h-5 text-[#2E68FF]" />
-                <span>Thêm Nhiệm Vụ Cho Nhóm</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Tạo mục tiêu daily quest mới để các thành viên cùng thực hiện.
-              </p>
-            </div>
-
-            <div className="space-y-4 text-left">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Tên Nhiệm Vụ
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="VD: Đọc 1 bài báo tin tức BBC News 10 phút"
-                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs text-[#1B1F2E] dark:text-white font-semibold"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Danh Mục
-                  </label>
-                  <select
-                    value={newTaskCategory}
-                    onChange={(e: any) => setNewTaskCategory(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white"
-                  >
-                    <option value="Speaking">Speaking</option>
-                    <option value="Vocabulary">Vocabulary</option>
-                    <option value="Writing">Writing</option>
-                    <option value="Call">Group Call</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Điểm Tích Lũy
-                  </label>
-                  <input
-                    type="number"
-                    min={10}
-                    max={200}
-                    value={newTaskPoints}
-                    onChange={(e) => setNewTaskPoints(Number(e.target.value))}
-                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs text-[#1B1F2E] dark:text-white font-semibold"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsAddTaskOpen(false)}
-                className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs shadow-md"
-              >
-                Tạo Nhiệm Vụ
               </button>
             </div>
           </form>
