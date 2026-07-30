@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Course, Category, Flashcard } from './types';
+import { Course, Category, Flashcard, UserProfile } from './types';
 import { INITIAL_CATEGORIES, INITIAL_COURSES, MOCK_FLASHCARDS } from './data/mockCourses';
 import { HeaderTopNav } from './components/HeaderTopNav';
 import { HeroSection } from './components/HeroSection';
@@ -16,6 +16,9 @@ import { FlashcardDeck } from './components/FlashcardDeck';
 import { ProgressAnalytics } from './components/ProgressAnalytics';
 import { CommunitySection } from './components/CommunitySection';
 import { SettingsPage } from './components/SettingsPage';
+import { AuthPage } from './components/AuthPage';
+import { AuthModal } from './components/AuthModal';
+import { AuthRequirementModal } from './components/AuthRequirementModal';
 import { FAQSection } from './components/FAQSection';
 import { FooterSection } from './components/FooterSection';
 import { 
@@ -37,6 +40,24 @@ export function App() {
 
   const [currentTab, setCurrentTab] = useState<string>('home');
   const [darkMode, setDarkMode] = useState<boolean>(false);
+
+  // Authentication state (null when guest, UserProfile when logged in)
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('t2m_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  // Auth requirement modal state
+  const [authModal, setAuthModal] = useState<{
+    isOpen: boolean;
+    featureTitle?: string;
+    featureDescription?: string;
+    pendingAction?: () => void;
+  }>({ isOpen: false });
+
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'signup'>('login');
+  const [authRedirectReason, setAuthRedirectReason] = useState<string>('');
+  const [isAuthPopupOpen, setIsAuthPopupOpen] = useState<boolean>(false);
 
   // State collections with localStorage backup
   const [categories, setCategories] = useState<Category[]>(() => {
@@ -68,6 +89,15 @@ export function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [prefillUrl, setPrefillUrl] = useState<string>('');
 
+  // Sync user state to localStorage
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('t2m_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('t2m_user');
+    }
+  }, [user]);
+
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('t2m_categories', JSON.stringify(categories));
@@ -85,11 +115,62 @@ export function App() {
     }
   }, [darkMode]);
 
-  // Open course creation modal
+  // Authorization Guard helper
+  const requireAuth = (
+    action: () => void,
+    title = 'Tính năng này yêu cầu đăng nhập',
+    description = 'Đăng nhập hoặc đăng ký tài khoản Talk2Me để lưu tiến độ học tập, khởi tạo khóa học AI cá nhân và mở khóa đầy đủ quyền lợi.'
+  ) => {
+    if (user) {
+      action();
+    } else {
+      setAuthModal({
+        isOpen: true,
+        featureTitle: title,
+        featureDescription: description,
+        pendingAction: action,
+      });
+    }
+  };
+
+  const handleOpenAuth = (mode: 'login' | 'signup' = 'login', reason?: string) => {
+    setAuthInitialMode(mode);
+    setAuthRedirectReason(reason || '');
+    setIsAuthPopupOpen(true);
+  };
+
+  const handleAuthConfirmModal = (mode: 'login' | 'signup') => {
+    const reason = authModal.featureTitle || 'Truy cập tính năng phân quyền';
+    setAuthModal({ isOpen: false });
+    handleOpenAuth(mode, reason);
+  };
+
+  const handleLoginSuccess = (newUser: UserProfile) => {
+    setUser(newUser);
+    setIsAuthPopupOpen(false);
+    if (authModal.pendingAction) {
+      const action = authModal.pendingAction;
+      setAuthModal({ isOpen: false });
+      action();
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setCurrentTab('home');
+  };
+
+  // Open course creation modal with permission guard
   const handleOpenCreateModal = (url?: string) => {
-    if (url) setPrefillUrl(url);
-    else setPrefillUrl('');
-    setIsCreateModalOpen(true);
+    requireAuth(
+      () => {
+        if (url) setPrefillUrl(url);
+        else setPrefillUrl('');
+        setIsCreateModalOpen(true);
+      },
+      'Tạo khóa học AI yêu cầu tài khoản',
+      'Đăng nhập để AI khởi tạo nội dung khóa học theo đường dẫn YouTube và đồng bộ dữ liệu bài học vào tài khoản cá nhân của bạn.'
+    );
   };
 
   // Add new course
@@ -126,18 +207,34 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F8FB] dark:bg-[#0F172A] text-[#1B1F2E] dark:text-[#F1F5F9] transition-colors duration-200">
       
-      {/* Top Navigation Bar (Replacing Sidebar as requested) */}
+      {/* Top Navigation Bar */}
       <HeaderTopNav
         currentTab={currentTab}
-        setCurrentTab={(tab) => {
-          if (tab !== 'course-detail') setActiveCourse(null);
-          setCurrentTab(tab);
-        }}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        onOpenCreateModal={handleOpenCreateModal}
-        streakCount={streakCount}
-      />
+          setCurrentTab={(tab) => {
+            if (tab === 'progress' || tab === 'settings') {
+              requireAuth(
+                () => {
+                  setActiveCourse(null);
+                  setCurrentTab(tab);
+                },
+                tab === 'progress' ? 'Báo cáo tiến độ học tập cá nhân' : 'Cài đặt tài khoản & Key AI',
+                tab === 'progress'
+                  ? 'Vui lòng đăng nhập để theo dõi tổng thời gian học, chuỗi ngày liên tiếp và biểu đồ ghi nhớ cá nhân.'
+                  : 'Vui lòng đăng nhập để quản lý API Key và thông tin cấu hình tài khoản.'
+              );
+            } else {
+              if (tab !== 'course-detail') setActiveCourse(null);
+              setCurrentTab(tab);
+            }
+          }}
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          onOpenCreateModal={handleOpenCreateModal}
+          streakCount={user ? user.streakDays : streakCount}
+          user={user}
+          onLogout={handleLogout}
+          onOpenAuth={(mode) => handleOpenAuth(mode)}
+        />
 
       {/* Main Page Content Body */}
       <main className="flex-1">
@@ -626,6 +723,15 @@ export function App() {
       {/* Footer Section */}
       <FooterSection />
 
+      {/* Auth Modal Popup matching template */}
+      <AuthModal
+        isOpen={isAuthPopupOpen}
+        onClose={() => setIsAuthPopupOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        redirectReason={authRedirectReason}
+        initialMode={authInitialMode}
+      />
+
       {/* AI Course Creator Modal */}
       <CreateCourseModal
         isOpen={isCreateModalOpen}
@@ -634,6 +740,15 @@ export function App() {
         onCourseCreated={handleCourseCreated}
         prefillUrl={prefillUrl}
         onCreateCategory={handleCreateCategory}
+      />
+
+      {/* Auth Requirement Modal for Protected Features */}
+      <AuthRequirementModal
+        isOpen={authModal.isOpen}
+        featureTitle={authModal.featureTitle}
+        featureDescription={authModal.featureDescription}
+        onClose={() => setAuthModal({ isOpen: false })}
+        onConfirmAuth={(mode) => handleAuthConfirmModal(mode || 'login')}
       />
 
     </div>

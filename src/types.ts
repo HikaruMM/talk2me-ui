@@ -1,3 +1,15 @@
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+  role?: 'free' | 'pro' | 'admin';
+  createdAt: string;
+  streakDays: number;
+  savedCourseIds?: string[];
+  completedLessonCount?: number;
+}
+
 export type LearningModeType = 'theory' | 'quiz' | 'dictation' | 'shadowing' | 'writing' | 'speaking';
 
 export interface Category {

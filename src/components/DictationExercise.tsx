@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { DictationSegment } from '../types';
 import { 
   Play, RotateCcw, ArrowRight, ArrowLeft, Mic, Sparkles, 
@@ -8,16 +8,18 @@ import {
 } from 'lucide-react';
 
 interface DictationExerciseProps {
-  segments: DictationSegment[];
   youtubeUrl?: string;
   videoTitle?: string;
-  onFinishDictation: () => void;
+  segments: DictationSegment[];
+  onComplete?: () => void;
+  onFinishDictation?: () => void;
 }
 
 export const DictationExercise: React.FC<DictationExerciseProps> = ({
-  segments,
-  youtubeUrl,
-  videoTitle = 'Talking about daily routines in English (present simple)',
+  youtubeUrl = 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+  videoTitle = 'A Digital Marketing (DMS) Method With Communication',
+  segments = [],
+  onComplete,
   onFinishDictation,
 }) => {
   const [activeSegmentIndex, setActiveSegmentIndex] = useState(0);
@@ -31,76 +33,73 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  if (!segments || segments.length === 0) {
-    return (
-      <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-8 border border-[#E4E8F0] dark:border-[#334155] text-center space-y-3">
-        <p className="text-sm font-semibold text-[#5A6478] dark:text-[#CBD5E1]">
-          No dictation segments available for this lesson.
-        </p>
-        <button
-          onClick={onFinishDictation}
-          className="px-6 py-2.5 rounded-full bg-[#12B76A] text-white text-xs font-bold"
-        >
-          Continue to Next Mode
-        </button>
-      </div>
-    );
-  }
+  const currentSegment = segments[activeSegmentIndex] || {
+    id: '1',
+    targetText: 'A Digital Marketing (DMS) Method With Communication',
+    startTime: 0,
+    endTime: 10,
+  };
 
-  const currentSegment = segments[activeSegmentIndex] || segments[0];
+  // Focus textarea when segment changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [activeSegmentIndex]);
 
-  // Speech synthesis for playing target audio
-  const speakSegment = (text?: string) => {
-    const targetText = text || currentSegment?.targetText;
-    if (targetText && 'speechSynthesis' in window) {
+  // Audio Playback simulation using Web Speech API
+  const speakSegment = (textToSpeak?: string) => {
+    if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(targetText);
+      const text = textToSpeak || currentSegment.targetText;
+      const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = playbackSpeed;
       utterance.lang = 'en-US';
       window.speechSynthesis.speak(utterance);
     }
   };
 
-  // Convert word to asterisk mask (e.g. "routines" -> "********")
-  const maskWord = (word: string) => {
-    return word.replace(/[a-zA-Z0-9]/g, '*');
+  // Asterisk mask generator
+  const getMaskedSentence = (text: string, revealedCount: number) => {
+    const words = text.split(' ');
+    return words
+      .map((w, idx) => {
+        if (idx < revealedCount) return w;
+        return '*'.repeat(Math.max(w.length, 3));
+      })
+      .join(' ');
   };
 
-  // Generate masked version of target text
-  const getMaskedSentence = (targetText: string, revealedCount: number = 0) => {
-    const words = targetText.split(/\s+/);
-    return words.map((word, idx) => {
-      if (idx < revealedCount) {
-        return word;
-      }
-      return maskWord(word);
-    }).join(' ');
-  };
-
-  const handleNextSegment = () => {
-    if (activeSegmentIndex < segments.length - 1) {
-      setActiveSegmentIndex(prev => prev + 1);
-    } else {
-      onFinishDictation();
-    }
-  };
-
-  const handlePrevSegment = () => {
-    if (activeSegmentIndex > 0) {
-      setActiveSegmentIndex(prev => prev - 1);
-    }
-  };
-
-  const handleCheckSentence = () => {
-    setSubmittedStatuses(prev => ({ ...prev, [activeSegmentIndex]: true }));
-  };
-
+  // Reveal one word hint
   const handleRevealWordHint = () => {
-    const targetWords = currentSegment.targetText.split(/\s+/);
-    const currentRevealed = hintsRevealed[activeSegmentIndex] || 0;
-    if (currentRevealed < targetWords.length) {
-      setHintsRevealed(prev => ({ ...prev, [activeSegmentIndex]: currentRevealed + 1 }));
+    const currentHints = hintsRevealed[activeSegmentIndex] || 0;
+    const totalWords = currentSegment.targetText.split(' ').length;
+    if (currentHints < totalWords) {
+      setHintsRevealed((prev) => ({
+        ...prev,
+        [activeSegmentIndex]: currentHints + 1,
+      }));
     }
+  };
+
+  // Word evaluation logic
+  const evaluateWords = () => {
+    const typed = (typedTexts[activeSegmentIndex] || '').trim().toLowerCase();
+    const targetWords = currentSegment.targetText.split(' ');
+    const typedWords = typed.split(/\s+/);
+
+    return targetWords.map((targetW, i) => {
+      const cleanTarget = targetW.replace(/[^\w]/g, '').toLowerCase();
+      const cleanTyped = (typedWords[i] || '').replace(/[^\w]/g, '').toLowerCase();
+
+      if (!cleanTyped) {
+        return { word: targetW, status: 'missing' };
+      }
+      if (cleanTyped === cleanTarget) {
+        return { word: targetW, status: 'correct' };
+      }
+      return { word: targetW, status: 'incorrect', typed: typedWords[i] };
+    });
   };
 
   // Hotkey keyboard handler
@@ -113,43 +112,39 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
       } else if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault();
         handleNextSegment();
-      } else if (e.key === 'Enter' && !e.shiftKey && document.activeElement === textareaRef.current) {
+      } else if (e.key === 'Enter' && !e.shiftKey && e.target === textareaRef.current) {
+        // Submit line
         e.preventDefault();
-        if (!submittedStatuses[activeSegmentIndex] && typedTexts[activeSegmentIndex]?.trim()) {
-          handleCheckSentence();
-        } else {
-          handleNextSegment();
-        }
+        setSubmittedStatuses((prev) => ({ ...prev, [activeSegmentIndex]: true }));
+      } else if (e.key === '~' || e.key === '`') {
+        e.preventDefault();
+        speakSegment();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         handleRevealWordHint();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault();
-        setShowCaptions(prev => !prev);
+        setShowCaptions((prev) => !prev);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSegmentIndex, typedTexts, submittedStatuses, currentSegment]);
+  }, [activeSegmentIndex, currentSegment, typedTexts]);
 
-  // Evaluate accuracy word by word
-  const evaluateWords = () => {
-    const targetText = currentSegment.targetText;
-    const userText = typedTexts[activeSegmentIndex] || '';
+  const handleNextSegment = () => {
+    if (activeSegmentIndex < segments.length - 1) {
+      setActiveSegmentIndex((prev) => prev + 1);
+    } else {
+      if (onComplete) onComplete();
+      if (onFinishDictation) onFinishDictation();
+    }
+  };
 
-    const cleanTarget = targetText.trim().replace(/[^\w\s]/gi, '').split(/\s+/);
-    const cleanUser = userText.trim().replace(/[^\w\s]/gi, '').split(/\s+/);
-
-    return cleanTarget.map((targetWord, idx) => {
-      const userWord = cleanUser[idx] || '';
-      const isMatched = userWord.toLowerCase() === targetWord.toLowerCase();
-      return {
-        targetWord,
-        userWord,
-        isMatched,
-      };
-    });
+  const handlePrevSegment = () => {
+    if (activeSegmentIndex > 0) {
+      setActiveSegmentIndex((prev) => prev - 1);
+    }
   };
 
   const completedCount = Object.keys(submittedStatuses).filter(k => submittedStatuses[Number(k)]).length;
@@ -380,7 +375,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
             </button>
           </div>
 
-          {/* Textarea Input Container */}
+          {/* Text Area Card */}
           <div className="p-4 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-sm space-y-3 relative">
             <textarea
               ref={textareaRef}
@@ -410,7 +405,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
           <button
             onClick={() => {
               if (!submittedStatuses[activeSegmentIndex] && typedTexts[activeSegmentIndex]?.trim()) {
-                handleCheckSentence();
+                setSubmittedStatuses((prev) => ({ ...prev, [activeSegmentIndex]: true }));
               } else {
                 handleNextSegment();
               }
@@ -425,7 +420,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
             {getMaskedSentence(currentSegment.targetText, hintsRevealed[activeSegmentIndex] || 0)}
           </div>
 
-          {/* Word-by-Word Analysis Box when checked */}
+          {/* Word accuracy results if checked */}
           {submittedStatuses[activeSegmentIndex] && (
             <div className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-2">
               <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Step-by-Step Word Accuracy:</p>
@@ -433,21 +428,15 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
                 {evalResult.map((res, wIdx) => (
                   <span
                     key={wIdx}
-                    className={`px-2.5 py-1 rounded-lg flex items-center gap-1 ${
-                      res.isMatched
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                        : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                    className={`px-2 py-0.5 rounded-md ${
+                      res.status === 'correct'
+                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                        : res.status === 'incorrect'
+                        ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 line-through'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
                     }`}
                   >
-                    {res.isMatched ? (
-                      <Check className="w-3 h-3 text-emerald-600" />
-                    ) : (
-                      <AlertTriangle className="w-3 h-3 text-red-500" />
-                    )}
-                    <span>{res.targetWord}</span>
-                    {!res.isMatched && res.userWord && (
-                      <span className="text-[10px] opacity-75 line-through">({res.userWord})</span>
-                    )}
+                    {res.word}
                   </span>
                 ))}
               </div>
