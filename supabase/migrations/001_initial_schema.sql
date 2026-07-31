@@ -17,12 +17,20 @@ CREATE TYPE flashcard_status AS ENUM ('new','learning','mastered');
 -- Extension của auth.users Supabase
 -- ================================================
 CREATE TABLE profiles (
-  id           uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  username     text UNIQUE NOT NULL,
-  avatar_url   text,
-  streak_days  int NOT NULL DEFAULT 0,
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  updated_at   timestamptz NOT NULL DEFAULT now()
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email                   text UNIQUE NOT NULL,
+  password_hash           text,
+  name                    text NOT NULL,
+  username                text,
+  avatar_url              text,
+  target_goal             text DEFAULT 'IELTS 6.5+',
+  current_level           text DEFAULT 'Intermediate (B1-B2)',
+  streak_days             int NOT NULL DEFAULT 0,
+  total_study_minutes     int NOT NULL DEFAULT 0,
+  completed_lessons_count int NOT NULL DEFAULT 0,
+  subscription_tier       text DEFAULT 'Free Member',
+  created_at              timestamptz NOT NULL DEFAULT now(),
+  updated_at              timestamptz NOT NULL DEFAULT now()
 );
 
 -- Trigger tự tạo profile khi user đăng ký
