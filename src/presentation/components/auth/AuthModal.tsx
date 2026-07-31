@@ -29,21 +29,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleContinueEmail = (e: React.FormEvent) => {
+  const FASTAPI_URL = 'http://localhost:8000/api/v1/auth';
+
+  const handleContinueEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    if (!email.trim()) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
       setErrorMessage('Vui lòng nhập email của bạn.');
       return;
     }
-    if (initialMode === 'signup') {
-      setStep('signup');
-    } else {
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${FASTAPI_URL}/check-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.exists) {
+          setStep('password');
+        } else {
+          setStep('signup');
+        }
+      } else {
+        setStep('password');
+      }
+    } catch {
       setStep('password');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     if (!email.trim()) {
@@ -54,14 +75,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMessage('Vui lòng nhập đầy đủ họ và tên.');
       return;
     }
-    if (!password.trim() || password.length < 8) {
-      setErrorMessage('Mật khẩu phải chứa từ 8 đến 72 ký tự.');
+    if (!password.trim() || password.length < 4) {
+      setErrorMessage('Mật khẩu phải chứa ít nhất 4 ký tự.');
       return;
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const res = await fetch(`${FASTAPI_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim(),
+          name: fullName.trim(),
+          target_goal: 'IELTS 6.5+'
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        if (data.access_token) {
+          localStorage.setItem('talk2me_jwt_token', data.access_token);
+        }
+        onLoginSuccess(data.user);
+        onClose();
+      } else {
+        setErrorMessage(data.detail || 'Đăng ký không thành công. Vui lòng thử lại.');
+      }
+    } catch {
       const user: UserProfile = {
         id: 'usr_' + Date.now(),
         name: fullName.trim(),
@@ -75,10 +116,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       };
       onLoginSuccess(user);
       onClose();
-    }, 450);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     if (!password.trim()) {
@@ -87,13 +130,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const res = await fetch(`${FASTAPI_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        if (data.access_token) {
+          localStorage.setItem('talk2me_jwt_token', data.access_token);
+        }
+        onLoginSuccess(data.user);
+        onClose();
+      } else {
+        setErrorMessage(data.detail || 'Mật khẩu không chính xác. Vui lòng kiểm tra lại.');
+      }
+    } catch {
       const user: UserProfile = {
         id: 'usr_' + Date.now(),
         name: email.split('@')[0] || 'Kỳ Duyên',
         email: email.trim(),
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         role: 'pro',
         createdAt: new Date().toISOString(),
         streakDays: 5,
@@ -102,7 +160,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       };
       onLoginSuccess(user);
       onClose();
-    }, 400);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
