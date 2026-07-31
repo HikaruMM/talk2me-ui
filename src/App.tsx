@@ -185,23 +185,33 @@ function AppContent() {
           <Route 
             path="/" 
             element={
-              <div className="py-8">
-                <HomePage
-                  courses={filteredPublicCourses}
-                  categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
-                  selectedCategory={selectedCategory}
-                  onSelectCategory={setSelectedCategory}
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  onSelectCourse={(courseId) => {
-                    const targetCourse = publicCourses.find((c) => c.id === courseId) || publicCourses[0];
-                    setActiveCourse(targetCourse);
-                    setCurrentTab('course-detail');
-                    navigate('/courses');
+              activeCourse && currentTab === 'home-detail' ? (
+                <CourseDetailPage
+                  course={activeCourse}
+                  onBack={() => {
+                    setActiveCourse(null);
+                    setCurrentTab('home');
                   }}
-                  onCreateCourseClick={handleOpenCreateModal}
+                  onOpenCreateModal={handleOpenCreateModal}
                 />
-              </div>
+              ) : (
+                <div className="py-8">
+                  <HomePage
+                    courses={filteredPublicCourses}
+                    categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
+                    selectedCategory={selectedCategory}
+                    onSelectCategory={setSelectedCategory}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    onSelectCourse={(courseId) => {
+                      const targetCourse = publicCourses.find((c) => c.id === courseId) || publicCourses[0];
+                      setActiveCourse(targetCourse);
+                      setCurrentTab('home-detail');
+                    }}
+                    onCreateCourseClick={handleOpenCreateModal}
+                  />
+                </div>
+              )
             } 
           />
 
@@ -209,7 +219,7 @@ function AppContent() {
           <Route 
             path="/courses" 
             element={
-              activeCourse ? (
+              activeCourse && currentTab === 'course-detail' ? (
                 <CourseDetailPage
                   course={activeCourse}
                   onBack={() => {
