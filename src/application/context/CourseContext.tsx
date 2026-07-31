@@ -1,11 +1,14 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { Course, Category, LearningModeType } from '../../core/entities';
 import { LocalCourseRepository } from '../../infrastructure/storage/LocalCourseRepository';
+import { INITIAL_COURSES } from '../../infrastructure/data/mockCourses';
 
 const courseRepo = new LocalCourseRepository();
 
 interface CourseContextType {
   categories: Category[];
+  publicCourses: Course[];
+  userCourses: Course[];
   courses: Course[];
   selectedCategory: string;
   searchQuery: string;
@@ -36,7 +39,17 @@ export const CourseContext = createContext<CourseContextType | undefined>(undefi
 
 export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [categories, setCategories] = useState<Category[]>(() => courseRepo.getCategories());
-  const [courses, setCourses] = useState<Course[]>(() => courseRepo.getCourses());
+  const [publicCourses] = useState<Course[]>(INITIAL_COURSES);
+  
+  // User's own created/saved courses
+  const [userCourses, setUserCourses] = useState<Course[]>(() => {
+    try {
+      const saved = localStorage.getItem('talk2me_user_created_courses');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -54,11 +67,11 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [categories]);
 
   useEffect(() => {
-    courseRepo.saveCourses(courses);
-  }, [courses]);
+    localStorage.setItem('talk2me_user_created_courses', JSON.stringify(userCourses));
+  }, [userCourses]);
 
   const addCourse = (newCourse: Course) => {
-    setCourses((prev) => [newCourse, ...prev]);
+    setUserCourses((prev) => [newCourse, ...prev]);
     setActiveCourse(newCourse);
     setActiveLessonIndex(0);
     setActiveMode('theory');
@@ -99,7 +112,9 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     <CourseContext.Provider
       value={{
         categories,
-        courses,
+        publicCourses,
+        userCourses,
+        courses: userCourses,
         selectedCategory,
         searchQuery,
         visibleLimit,

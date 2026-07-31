@@ -29,7 +29,7 @@ import {
 function AppContent() {
   const { darkMode, setDarkMode } = useTheme();
   const { user, login, logout } = useAuth();
-  const { courses, addCourse, categories, addCategory } = useCourses();
+  const { publicCourses, userCourses, addCourse, categories, addCategory } = useCourses();
   const navigate = useNavigate();
 
   const [currentTab, setCurrentTab] = useState<string>('home');
@@ -130,8 +130,16 @@ function AppContent() {
     addCategory(newCat);
   };
 
-  // Filter courses by category & search term
-  const filteredCourses = courses.filter((c) => {
+  // Filter public demo courses for HomePage
+  const filteredPublicCourses = publicCourses.filter((c) => {
+    const matchesCategory = selectedCategory === 'all' || c.categoryId === selectedCategory || c.category.toLowerCase() === selectedCategory.toLowerCase();
+    const query = searchQuery.toLowerCase().trim();
+    const matchesSearch = !query || c.title.toLowerCase().includes(query) || c.description.toLowerCase().includes(query) || c.category.toLowerCase().includes(query);
+    return matchesCategory && matchesSearch;
+  });
+
+  // Filter user-created courses for CoursesPage
+  const filteredUserCourses = userCourses.filter((c) => {
     const matchesCategory = selectedCategory === 'all' || c.categoryId === selectedCategory || c.category.toLowerCase() === selectedCategory.toLowerCase();
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch = !query || c.title.toLowerCase().includes(query) || c.description.toLowerCase().includes(query) || c.category.toLowerCase().includes(query);
@@ -173,20 +181,20 @@ function AppContent() {
       {/* Main Page Content Body with React Router Routes */}
       <main className="flex-1">
         <Routes>
-          {/* HOME PAGE ROUTE */}
+          {/* HOME PAGE ROUTE (Displays Platform Public Demo Courses) */}
           <Route 
             path="/" 
             element={
               <div className="py-8">
                 <HomePage
-                  courses={filteredCourses}
+                  courses={filteredPublicCourses}
                   categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
                   selectedCategory={selectedCategory}
                   onSelectCategory={setSelectedCategory}
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
                   onSelectCourse={(courseId) => {
-                    const targetCourse = courses.find((c) => c.id === courseId) || courses[0];
+                    const targetCourse = publicCourses.find((c) => c.id === courseId) || publicCourses[0];
                     setActiveCourse(targetCourse);
                     setCurrentTab('course-detail');
                     navigate('/courses');
@@ -197,7 +205,7 @@ function AppContent() {
             } 
           />
 
-          {/* COURSES LIBRARY ROUTE */}
+          {/* COURSES LIBRARY ROUTE (Displays User Created / Saved Courses) */}
           <Route 
             path="/courses" 
             element={
@@ -212,7 +220,7 @@ function AppContent() {
                 />
               ) : (
                 <CoursesPage
-                  courses={courses}
+                  courses={filteredUserCourses}
                   categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
                   selectedCategory={selectedCategory}
                   onSelectCategory={setSelectedCategory}
@@ -241,7 +249,8 @@ function AppContent() {
             element={
               <CommunityPage
                 onSelectCourse={(courseId) => {
-                  const targetCourse = courses.find((c) => c.id === courseId) || courses[0];
+                  const allCourses = [...userCourses, ...publicCourses];
+                  const targetCourse = allCourses.find((c) => c.id === courseId) || allCourses[0];
                   if (targetCourse) {
                     setActiveCourse(targetCourse);
                     navigate('/courses');
