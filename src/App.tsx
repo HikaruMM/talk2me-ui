@@ -20,7 +20,8 @@ import {
   AnalyticsPage, 
   CommunityPage, 
   SettingsPage,
-  AuthPage
+  AuthPage,
+  CoursesPage
 } from './presentation/pages';
 
 function AppContent() {
@@ -170,7 +171,7 @@ function AppContent() {
       <main className="flex-1">
 
         {/* HOME PAGE */}
-        {(currentTab === 'home' || currentTab === 'courses') && (
+        {currentTab === 'home' && (
           <div className="py-8">
             <HomePage
               courses={filteredCourses}
@@ -187,6 +188,23 @@ function AppContent() {
               onCreateCourseClick={handleOpenCreateModal}
             />
           </div>
+        )}
+
+        {/* COURSES LIBRARY PAGE */}
+        {currentTab === 'courses' && (
+          <CoursesPage
+            courses={courses}
+            categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
+            selectedCategory={selectedCategory}
+            onSelectCategory={setSelectedCategory}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSelectCourse={(course) => {
+              setActiveCourse(course);
+              setCurrentTab('course-detail');
+            }}
+            onCreateCourseClick={handleOpenCreateModal}
+          />
         )}
 
         {/* FLASHCARDS PAGE */}
