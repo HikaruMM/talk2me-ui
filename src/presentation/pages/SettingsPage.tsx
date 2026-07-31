@@ -20,13 +20,14 @@ import {
   Check,
   Info
 } from 'lucide-react';
-import { 
-  POPULAR_MODELS, 
-  OpenRouterConfig, 
-  getStoredConfig, 
-  saveStoredConfig, 
+import {
+  OpenRouterModel,
+  OpenRouterConfig,
+  getStoredConfig,
+  saveStoredConfig,
   testOpenRouterKey,
-  generateCompletion
+  generateCompletion,
+  fetchLiveModels
 } from '../../infrastructure/api/openrouter';
 
 interface SettingsPageProps {
@@ -50,10 +51,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   const [testPrompt, setTestPrompt] = useState<string>(
     'Hãy cho tôi 3 lý do vì sao phương pháp Lặp lại ngắt quãng (SRS) giúp ghi nhớ từ vựng tiếng Anh tốt nhất.'
   );
-  const [testSelectedModel, setTestSelectedModel] = useState<string>('google/gemini-2.0-flash-exp:free');
+  const [testSelectedModel, setTestSelectedModel] = useState<string>('openai/gpt-oss-20b:free');
   const [testResponse, setTestResponse] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [playgroundError, setPlaygroundError] = useState<string>('');
+
+  // Fetch live active models dynamically directly from OpenRouter API
+  const [liveModels, setLiveModels] = useState<OpenRouterModel[]>([]);
+  const availableModels = liveModels;
+
+  useEffect(() => {
+    fetchLiveModels()
+      .then(setLiveModels)
+      .catch((err) => console.warn('Không lấy được danh sách model live từ OpenRouter API:', err));
+  }, []);
 
   useEffect(() => {
     setApiKeyInput(config.apiKey);
@@ -129,26 +140,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
 
     if (presetType === 'free') {
       updatedModels = {
-        defaultModel: 'google/gemini-2.0-flash-exp:free',
-        courseGenerator: 'google/gemini-2.0-flash-exp:free',
-        flashcardGenerator: 'meta-llama/llama-3.3-70b-instruct:free',
-        writingGrader: 'deepseek/deepseek-r1:free',
-        quizGenerator: 'qwen/qwen-2.5-72b-instruct:free',
+        defaultModel: 'openai/gpt-oss-20b:free',
+        courseGenerator: 'openai/gpt-oss-20b:free',
+        flashcardGenerator: 'nvidia/nemotron-3-nano-30b-a3b:free',
+        writingGrader: 'nvidia/nemotron-3-super-120b-a12b:free',
+        quizGenerator: 'google/gemma-4-31b-it:free',
       };
     } else if (presetType === 'speed') {
       updatedModels = {
-        defaultModel: 'google/gemini-2.0-flash-exp:free',
-        courseGenerator: 'google/gemini-2.0-flash-exp:free',
+        defaultModel: 'openai/gpt-4o-mini',
+        courseGenerator: 'openai/gpt-4o-mini',
         flashcardGenerator: 'openai/gpt-4o-mini',
         writingGrader: 'deepseek/deepseek-chat',
-        quizGenerator: 'google/gemini-2.0-flash-exp:free',
+        quizGenerator: 'openai/gpt-4o-mini',
       };
     } else if (presetType === 'pro') {
       updatedModels = {
-        defaultModel: 'anthropic/claude-3.5-sonnet',
-        courseGenerator: 'anthropic/claude-3.5-sonnet',
+        defaultModel: 'anthropic/claude-sonnet-5',
+        courseGenerator: 'anthropic/claude-sonnet-5',
         flashcardGenerator: 'deepseek/deepseek-chat',
-        writingGrader: 'deepseek/deepseek-r1:free',
+        writingGrader: 'deepseek/deepseek-r1',
         quizGenerator: 'openai/gpt-4o-mini',
       };
     }
@@ -462,7 +473,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               }}
               className="w-full p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF]"
             >
-              {POPULAR_MODELS.map((m) => (
+              {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.provider}) {m.isFree ? '• [Free]' : '• [BYOK]'}
                 </option>
@@ -488,7 +499,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               }}
               className="w-full p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF]"
             >
-              {POPULAR_MODELS.map((m) => (
+              {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.provider}) {m.isFree ? '• [Free]' : '• [BYOK]'}
                 </option>
@@ -514,7 +525,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               }}
               className="w-full p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF]"
             >
-              {POPULAR_MODELS.map((m) => (
+              {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.provider}) {m.isFree ? '• [Free]' : '• [BYOK]'}
                 </option>
@@ -540,7 +551,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               }}
               className="w-full p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF]"
             >
-              {POPULAR_MODELS.map((m) => (
+              {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.provider}) {m.isFree ? '• [Free]' : '• [BYOK]'}
                 </option>
@@ -607,7 +618,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
                 onChange={(e) => setTestSelectedModel(e.target.value)}
                 className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white"
               >
-                {POPULAR_MODELS.map((m) => (
+                {availableModels.map((m) => (
                   <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
                 ))}
               </select>

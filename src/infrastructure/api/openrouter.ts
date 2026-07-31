@@ -8,71 +8,7 @@ export interface OpenRouterModel {
   contextLength?: string;
 }
 
-export const POPULAR_MODELS: OpenRouterModel[] = [
-  {
-    id: 'google/gemini-2.0-flash-exp:free',
-    name: 'Gemini 2.0 Flash (Free)',
-    provider: 'Google',
-    isFree: true,
-    description: 'Tốc độ cực nhanh, đa năng, xử lý tốt tiếng Việt & suy luận tốt.',
-    badge: 'Miễn Phí • Siêu Nhanh',
-    contextLength: '1M tokens',
-  },
-  {
-    id: 'deepseek/deepseek-r1:free',
-    name: 'DeepSeek R1 (Free)',
-    provider: 'DeepSeek',
-    isFree: true,
-    description: 'Mô hình suy luận chiều sâu đỉnh cao, lý tưởng cho chấm bài viết & phân tích ngữ pháp.',
-    badge: 'Miễn Phí • Khuyên Dùng',
-    contextLength: '64k tokens',
-  },
-  {
-    id: 'meta-llama/llama-3.3-70b-instruct:free',
-    name: 'Llama 3.3 70B Instruct (Free)',
-    provider: 'Meta',
-    isFree: true,
-    description: 'Mô hình mã nguồn mở mạnh mẽ nhất của Meta, tạo flashcard & trắc nghiệm mượt mà.',
-    badge: 'Miễn Phí • Thông Minh',
-    contextLength: '128k tokens',
-  },
-  {
-    id: 'qwen/qwen-2.5-72b-instruct:free',
-    name: 'Qwen 2.5 72B Instruct (Free)',
-    provider: 'Alibaba Cloud',
-    isFree: true,
-    description: 'Mô hình đa ngôn ngữ hàng đầu, hiểu sâu ngữ cảnh tiếng Việt và dịch thuật.',
-    badge: 'Miễn Phí • Đa Ngôn Ngữ',
-    contextLength: '32k tokens',
-  },
-  {
-    id: 'anthropic/claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'Anthropic',
-    isFree: false,
-    description: 'Mô hình trí tuệ nhân tạo xuất sắc nhất hiện nay cho lập trình, sáng tạo & viết lách.',
-    badge: 'BYOK • Cao Cấp ⚡',
-    contextLength: '200k tokens',
-  },
-  {
-    id: 'openai/gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    provider: 'OpenAI',
-    isFree: false,
-    description: 'Bản thu nhỏ tốc độ cao của GPT-4o, chi phí cực kỳ tiết kiệm với chất lượng ấn tượng.',
-    badge: 'BYOK • Tiết Kiệm 🚀',
-    contextLength: '128k tokens',
-  },
-  {
-    id: 'deepseek/deepseek-chat',
-    name: 'DeepSeek V3 (Chat)',
-    provider: 'DeepSeek',
-    isFree: false,
-    description: 'Siêu mô hình thế hệ mới, câu trả lời tự nhiên, chính xác và phản hồi cực nhanh.',
-    badge: 'BYOK • Giá Rẻ',
-    contextLength: '64k tokens',
-  },
-];
+
 
 export interface OpenRouterConfig {
   apiKey: string;
@@ -90,13 +26,57 @@ export const DEFAULT_CONFIG: OpenRouterConfig = {
   apiKey: '',
   useCustomKey: false,
   models: {
-    defaultModel: 'google/gemini-2.0-flash-exp:free',
-    courseGenerator: 'google/gemini-2.0-flash-exp:free',
-    flashcardGenerator: 'meta-llama/llama-3.3-70b-instruct:free',
-    writingGrader: 'deepseek/deepseek-r1:free',
-    quizGenerator: 'qwen/qwen-2.5-72b-instruct:free',
+    defaultModel: 'openai/gpt-oss-20b:free',
+    courseGenerator: 'openai/gpt-oss-20b:free',
+    flashcardGenerator: 'nvidia/nemotron-3-nano-30b-a3b:free',
+    writingGrader: 'nvidia/nemotron-3-super-120b-a12b:free',
+    quizGenerator: 'google/gemma-4-31b-it:free',
   },
 };
+
+interface OpenRouterCatalogEntry {
+  id: string;
+  name?: string;
+  description?: string;
+  context_length?: number;
+}
+
+const FEATURED_PAID_PREFIXES = ['anthropic/', 'openai/', 'deepseek/'];
+
+/**
+ * Fetches OpenRouter's live model catalog (public endpoint, no key required) so the
+ * Settings dropdowns always reflect models that actually exist right now — OpenRouter's
+ * ":free" catalog rotates without notice, so a hardcoded list like POPULAR_MODELS below
+ * inevitably goes stale. Callers should fall back to POPULAR_MODELS if this rejects
+ * (offline, OpenRouter down, etc).
+ */
+export async function fetchLiveModels(): Promise<OpenRouterModel[]> {
+  const response = await fetch('https://openrouter.ai/api/v1/models');
+  if (!response.ok) {
+    throw new Error(`Không lấy được danh sách model từ OpenRouter (mã lỗi ${response.status})`);
+  }
+  const body = await response.json();
+  const entries: OpenRouterCatalogEntry[] = body?.data || [];
+
+  const models: OpenRouterModel[] = entries
+    .filter((m) => m.id.endsWith(':free') || FEATURED_PAID_PREFIXES.some((p) => m.id.startsWith(p)))
+    .map((m) => {
+      const isFree = m.id.endsWith(':free');
+      const provider = m.id.split('/')[0];
+      return {
+        id: m.id,
+        name: m.name || m.id,
+        provider: provider.charAt(0).toUpperCase() + provider.slice(1),
+        isFree,
+        description: (m.description || '').slice(0, 160),
+        badge: isFree ? 'Miễn Phí' : 'BYOK',
+        contextLength: m.context_length ? `${Math.round(m.context_length / 1000)}k tokens` : undefined,
+      };
+    })
+    .sort((a, b) => Number(b.isFree) - Number(a.isFree));
+
+  return models;
+}
 
 const STORAGE_KEY = 't2m_openrouter_config';
 
@@ -175,7 +155,7 @@ export async function generateCompletion(
 ): Promise<string> {
   const config = getStoredConfig();
   const apiKey = config.useCustomKey && config.apiKey.trim() ? config.apiKey.trim() : '';
-  const selectedModel = modelId || config.models.defaultModel || 'google/gemini-2.0-flash-exp:free';
+  const selectedModel = modelId || config.models.defaultModel || 'openai/gpt-oss-20b:free';
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

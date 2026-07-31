@@ -944,7 +944,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
     setIsGeneratingAiTopic(true);
     try {
       const prompt = `Hãy tạo 1 thẻ thảo luận tiếng Anh ngắn gồm: 1 câu hỏi chủ đề giao tiếp hay, 4 từ vựng đắt giá nên dùng, và 1 câu gợi ý mở đầu bằng tiếng Anh kèm giải thích tiếng Việt ngắn gọn. Trả về dạng JSON dạng văn bản sạch.`;
-      const res = await generateCompletion(prompt, 'google/gemini-2.0-flash-exp:free');
+      const res = await generateCompletion(prompt);
       setAiTopicCards([
         `💡 AI Topic Mới: ${res.slice(0, 180)}...`,
         "Gợi ý: Hãy phân công từng thành viên nói trong 2 phút!",
@@ -967,7 +967,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
     setAiSummary("Đang nhờ AI phân tích lại lượt nói của nhóm...");
     try {
       const prompt = `Hãy viết một bản tóm tắt nhận xét buổi học tiếng Anh nhóm ngắn gọn, động viên bằng Tiếng Việt. Bao gồm: 3 từ vựng hay nhóm đã dùng, 2 lỗi ngữ pháp nhỏ cần lưu ý (kèm sửa lại đúng) và chấm điểm năng nổ 9.5/10.`;
-      const res = await generateCompletion(prompt, 'deepseek/deepseek-r1:free');
+      const res = await generateCompletion(prompt, 'nvidia/nemotron-3-super-120b-a12b:free');
       setAiSummary(res);
     } catch {
       setAiSummary("🎉 Tóm tắt buổi học từ AI MC: Nhóm phát âm rất tự nhiên! Cần chú ý nhấn trọng âm từ 'Development' và chia thì quá khứ đơn 'went' thay vì 'go' khi kể chuyện. Điểm năng nổ: 9.8/10 🔥");
