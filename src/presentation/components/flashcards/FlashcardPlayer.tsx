@@ -1,0 +1,588 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Volume2, 
+  Star, 
+  ArrowLeft, 
+  Sparkles, 
+  HelpCircle,
+  Zap,
+  Globe,
+  Lock,
+  Edit3,
+  Award,
+  Layers,
+  X,
+  Check,
+  RotateCcw,
+  Maximize2,
+  Minimize2,
+  Lightbulb,
+  Keyboard
+} from 'lucide-react';
+import { FlashcardSet } from '../../../core/entities';
+
+interface FlashcardPlayerProps {
+  set: FlashcardSet;
+  onBack: () => void;
+  onEditSet: () => void;
+}
+
+export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
+  set,
+  onBack,
+  onEditSet,
+}) => {
+  const [activeMode, setActiveMode] = useState<'flashcard' | 'quiz' | 'match'>('flashcard');
+
+  // Flashcard Flip State
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [starredIds, setStarredIds] = useState<string[]>([]);
+  const [showHint, setShowHint] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Learning Progress Counters
+  const [learningIds, setLearningIds] = useState<string[]>([]);
+  const [knownIds, setKnownIds] = useState<string[]>([]);
+  const [trackProgress, setTrackProgress] = useState(true);
+
+  // Quiz Mode State
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [isQuizFinished, setIsQuizFinished] = useState(false);
+
+  // Match Game State
+  const [matchSelected, setMatchSelected] = useState<{ id: string; text: string; type: 'front' | 'back' } | null>(null);
+  const [matchedIds, setMatchedIds] = useState<string[]>([]);
+
+  const currentCard = set.cards[currentIndex] || set.cards[0];
+
+  // Speak Audio
+  const speak = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Toggle Star
+  const toggleStar = (id: string) => {
+    setStarredIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  // Mark as Learning (X)
+  const handleMarkLearning = useCallback(() => {
+    if (!currentCard) return;
+    const id = currentCard.id;
+    setLearningIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setKnownIds((prev) => prev.filter((i) => i !== id));
+    setIsFlipped(false);
+    setShowHint(false);
+    if (currentIndex < set.cards.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    }
+  }, [currentCard, currentIndex, set.cards.length]);
+
+  // Mark as Known (Check)
+  const handleMarkKnown = useCallback(() => {
+    if (!currentCard) return;
+    const id = currentCard.id;
+    setKnownIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setLearningIds((prev) => prev.filter((i) => i !== id));
+    setIsFlipped(false);
+    setShowHint(false);
+    if (currentIndex < set.cards.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    }
+  }, [currentCard, currentIndex, set.cards.length]);
+
+  // Undo / Previous card
+  const handleUndo = useCallback(() => {
+    if (currentIndex > 0) {
+      setIsFlipped(false);
+      setShowHint(false);
+      setCurrentIndex((prev) => prev - 1);
+    }
+  }, [currentIndex]);
+
+  // Keyboard Shortcuts Handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeMode !== 'flashcard') return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsFlipped((prev) => !prev);
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        handleMarkLearning();
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        handleMarkKnown();
+      } else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+        e.preventDefault();
+        setIsFlipped((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeMode, handleMarkLearning, handleMarkKnown]);
+
+  const toggleFullscreen = () => {
+    setIsFullscreen((prev) => !prev);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-200">
+      
+      {/* Top Navigation & Set Title */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-sm">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+                Học phần ({set.cards.length} thẻ)
+              </span>
+              {set.isPublic ? (
+                <span className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                  <Globe className="w-3 h-3 text-emerald-500" /> Công khai
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-500" /> Riêng tư
+                </span>
+              )}
+            </div>
+            <h1 className="text-lg sm:text-xl font-extrabold text-[#1B1F2E] dark:text-white">
+              {set.title}
+            </h1>
+          </div>
+        </div>
+
+        <button
+          onClick={onEditSet}
+          className="px-4 py-2 rounded-2xl bg-[#EAF1FF] dark:bg-[#1A2540] text-[#2E68FF] font-extrabold text-xs flex items-center gap-2 hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors"
+        >
+          <Edit3 className="w-4 h-4" />
+          <span>Chỉnh sửa học phần</span>
+        </button>
+      </div>
+
+      {/* Mode Switcher Bar */}
+      <div className="flex flex-wrap items-center gap-2 p-2 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs">
+        <button
+          onClick={() => setActiveMode('flashcard')}
+          className={`flex-1 py-3 px-4 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
+            activeMode === 'flashcard'
+              ? 'bg-[#2E68FF] text-white shadow-md'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Thẻ ghi nhớ (Flashcard)</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveMode('quiz');
+            setQuizIndex(0);
+            setQuizScore(0);
+            setIsQuizFinished(false);
+          }}
+          className={`flex-1 py-3 px-4 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
+            activeMode === 'quiz'
+              ? 'bg-[#2E68FF] text-white shadow-md'
+              : 'text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <HelpCircle className="w-4 h-4" />
+          <span>Học & Kiểm tra (Quiz)</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveMode('match');
+            setMatchSelected(null);
+            setMatchedIds([]);
+          }}
+          className={`flex-1 py-3 px-4 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
+            activeMode === 'match'
+              ? 'bg-[#2E68FF] text-white shadow-md'
+              : 'text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
+          <span>Ghép thẻ (Match Game)</span>
+        </button>
+      </div>
+
+      {/* MODE 1: FLASHCARD PLAYER */}
+      {activeMode === 'flashcard' && (
+        <div className={`space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] text-slate-900 dark:text-white p-6 overflow-y-auto flex flex-col justify-between' : ''}`}>
+          
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
+              <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
+                {learningIds.length}
+              </span>
+              <span>Đang học</span>
+            </div>
+
+            <div className="text-center font-extrabold text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-slate-800 dark:text-slate-200">{currentIndex + 1} / {set.cards.length}</span>
+              <span className="mx-2">•</span>
+              <span className="truncate max-w-[150px] sm:max-w-[250px] inline-block align-bottom text-slate-600 dark:text-slate-300">
+                {set.title}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+              <span>Đã biết</span>
+              <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px]">
+                {knownIds.length}
+              </span>
+            </div>
+          </div>
+
+          <div
+            onClick={() => setIsFlipped(!isFlipped)}
+            className="relative w-full min-h-[380px] sm:min-h-[460px] rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl p-8 flex flex-col justify-between cursor-pointer transition-all duration-300 hover:border-blue-500/50 group select-none"
+          >
+            <div className="flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowHint(!showHint);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors ${
+                  showHint
+                    ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 border-amber-300'
+                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-transparent hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                <span>{showHint ? 'Ẩn gợi ý' : 'Hiển thị gợi ý'}</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    speak(!isFlipped ? currentCard.frontText : currentCard.backText);
+                  }}
+                  className="p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 transition-transform"
+                  title="Phát âm"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleStar(currentCard.id);
+                  }}
+                  className={`p-2 rounded-full border transition-colors ${
+                    starredIds.includes(currentCard.id)
+                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent'
+                  }`}
+                  title="Gắn sao"
+                >
+                  <Star className={`w-4 h-4 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            <div className="text-center my-auto px-4 py-8 space-y-4">
+              {!isFlipped ? (
+                <div className="space-y-4">
+                  <h2 className="text-3xl sm:text-5xl font-black text-[#1B1F2E] dark:text-white tracking-tight leading-snug">
+                    {currentCard.frontText}
+                  </h2>
+                  {currentCard.phonetic && (
+                    <p className="text-base font-mono text-[#2E68FF] font-bold">{currentCard.phonetic}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <p className="text-2xl sm:text-4xl font-extrabold text-[#1B1F2E] dark:text-white leading-relaxed">
+                    {currentCard.backText}
+                  </p>
+
+                  {currentCard.imageUrl && (
+                    <div className="max-w-xs mx-auto rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                      <img src={currentCard.imageUrl} alt="Card visual" className="w-full h-40 object-cover" />
+                    </div>
+                  )}
+
+                  {currentCard.exampleSentence && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 italic max-w-lg mx-auto">
+                      "{currentCard.exampleSentence}"
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {showHint && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-xs font-semibold max-w-md mx-auto animate-in fade-in">
+                  💡 Gợi ý: {currentCard.phonetic ? `Phiên âm: ${currentCard.phonetic} | ` : ''}{currentCard.backText.slice(0, 15)}...
+                </div>
+              )}
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[11px] font-bold flex items-center justify-center gap-2">
+              <Keyboard className="w-3.5 h-3.5" />
+              <span>Nhấn <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono">phím cách</kbd> hoặc nhấp vào thẻ để lật</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 pt-2">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+              <button
+                type="button"
+                onClick={() => setTrackProgress(!trackProgress)}
+                className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
+                  trackProgress ? 'bg-[#2E68FF]' : 'bg-slate-300 dark:bg-slate-700'
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                    trackProgress ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className="hidden sm:inline">Theo dõi tiến độ</span>
+            </label>
+
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={handleMarkLearning}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-slate-200 dark:border-slate-700 text-amber-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
+                title="Đang học"
+              >
+                <X className="w-7 h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleMarkKnown}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-slate-200 dark:border-slate-700 text-emerald-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
+                title="Đã biết"
+              >
+                <Check className="w-7 h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={currentIndex === 0}
+                className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors"
+                title="Hoàn tác"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                title={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
+              >
+                {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-8 space-y-4 border-t border-[#E4E8F0] dark:border-[#334155]">
+            <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+              Danh sách từ trong học phần này ({set.cards.length} thẻ)
+            </h3>
+
+            <div className="space-y-3">
+              {set.cards.map((c, idx) => (
+                <div
+                  key={c.id || idx}
+                  className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-4 items-center"
+                >
+                  <div className="sm:col-span-5 font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <button
+                      onClick={() => speak(c.frontText)}
+                      className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                    </button>
+                    <span>{c.frontText}</span>
+                    {c.phonetic && <span className="text-xs text-blue-500 font-normal">({c.phonetic})</span>}
+                  </div>
+
+                  <div className="sm:col-span-7 text-xs text-slate-600 dark:text-slate-300 font-medium border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-2 sm:pt-0 sm:pl-4">
+                    {c.backText}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* MODE 2: QUIZ / LEARN MODE */}
+      {activeMode === 'quiz' && (
+        <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-lg space-y-6">
+          {!isQuizFinished ? (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between text-xs font-extrabold text-slate-500">
+                <span>Câu {quizIndex + 1} / {set.cards.length}</span>
+                <span className="text-emerald-600">Điểm: {quizScore}</span>
+              </div>
+
+              <div className="space-y-2 text-center">
+                <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider">
+                  Chọn định nghĩa đúng cho thuật ngữ sau:
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  "{set.cards[quizIndex]?.frontText}"
+                </h2>
+              </div>
+
+              <div className="space-y-3">
+                {set.cards.map((optCard, optIdx) => (
+                  <button
+                    key={optIdx}
+                    onClick={() => {
+                      if (selectedOption !== null) return;
+                      setSelectedOption(optCard.backText);
+                      if (optCard.backText === set.cards[quizIndex].backText) {
+                        setQuizScore((prev) => prev + 1);
+                      }
+                      setTimeout(() => {
+                        setSelectedOption(null);
+                        if (quizIndex < set.cards.length - 1) {
+                          setQuizIndex((prev) => prev + 1);
+                        } else {
+                          setIsQuizFinished(true);
+                        }
+                      }, 1200);
+                    }}
+                    className={`w-full p-4 rounded-2xl border text-left font-bold text-xs transition-all ${
+                      selectedOption === null
+                        ? 'bg-[#F8FAFC] dark:bg-[#0F172A] border-[#E4E8F0] dark:border-[#334155] hover:border-blue-500'
+                        : optCard.backText === set.cards[quizIndex].backText
+                        ? 'bg-emerald-100 dark:bg-emerald-950 border-emerald-500 text-emerald-800 dark:text-emerald-300'
+                        : selectedOption === optCard.backText
+                        ? 'bg-red-100 dark:bg-red-950 border-red-500 text-red-800 dark:text-red-300'
+                        : 'bg-slate-100 dark:bg-slate-800 opacity-50'
+                    }`}
+                  >
+                    {optCard.backText}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 space-y-4">
+              <Award className="w-16 h-16 text-emerald-500 mx-auto" />
+              <h3 className="text-2xl font-black">Hoàn thành bài kiểm tra!</h3>
+              <p className="text-sm text-slate-500">
+                Bạn đạt <strong>{quizScore} / {set.cards.length}</strong> câu đúng!
+              </p>
+              <button
+                onClick={() => {
+                  setQuizIndex(0);
+                  setQuizScore(0);
+                  setIsQuizFinished(false);
+                }}
+                className="px-6 py-3 rounded-2xl bg-blue-600 text-white font-extrabold text-xs"
+              >
+                Luyện tập lại
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODE 3: MATCH GAME */}
+      {activeMode === 'match' && (
+        <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-lg space-y-6">
+          <div className="text-center space-y-1">
+            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">Trò chơi ghép thẻ</h2>
+            <p className="text-xs text-slate-500">Nhấn chọn một thuật ngữ và nối với định nghĩa tương ứng</p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {set.cards.flatMap((c) => [
+              { id: c.id, text: c.frontText, type: 'front' as const },
+              { id: c.id, text: c.backText, type: 'back' as const },
+            ]).map((item, idx) => {
+              const isMatched = matchedIds.includes(item.id);
+              const isSelected = matchSelected?.id === item.id && matchSelected?.type === item.type;
+
+              if (isMatched) return null;
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (!matchSelected) {
+                      setMatchSelected(item);
+                    } else {
+                      if (matchSelected.type !== item.type && matchSelected.id === item.id) {
+                        setMatchedIds((prev) => [...prev, item.id]);
+                        setMatchSelected(null);
+                      } else {
+                        setMatchSelected(null);
+                      }
+                    }
+                  }}
+                  className={`p-4 rounded-2xl border text-xs font-bold text-center h-28 flex items-center justify-center transition-all ${
+                    isSelected
+                      ? 'border-2 border-blue-600 bg-blue-100 dark:bg-blue-950 text-blue-700 shadow-md scale-105'
+                      : 'bg-[#F8FAFC] dark:bg-[#0F172A] border-[#E4E8F0] dark:border-[#334155] hover:border-blue-400'
+                  }`}
+                >
+                  {item.text}
+                </button>
+              );
+            })}
+          </div>
+
+          {matchedIds.length === set.cards.length && (
+            <div className="text-center py-6 space-y-3">
+              <Sparkles className="w-12 h-12 text-amber-500 mx-auto" />
+              <h3 className="text-xl font-extrabold">Tuyệt vời! Bạn đã ghép đúng tất cả các thẻ!</h3>
+              <button
+                onClick={() => {
+                  setMatchedIds([]);
+                  setMatchSelected(null);
+                }}
+                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs"
+              >
+                Chơi lại
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+    </div>
+  );
+};

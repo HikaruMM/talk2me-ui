@@ -1,0 +1,7 @@
+export * from './HomePage';
+export * from './CourseDetailPage';
+export * from './FlashcardsPage';
+export * from './AnalyticsPage';
+export * from './CommunityPage';
+export * from './SettingsPage';
+export * from './AuthPage';
