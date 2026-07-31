@@ -37,14 +37,6 @@ export const HomePage: React.FC<HomePageProps> = ({
 
       {/* Courses Catalog Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-black text-[#1B1F2E] dark:text-white tracking-tight">
-            Khóa Học Tiếng Anh Tương Tác từ YouTube
-          </h2>
-          <p className="text-xs sm:text-sm text-[#5A6478] dark:text-[#CBD5E1] mt-1">
-            Khám phá các khóa học AI bóc tách bài tập 6 chế độ thông minh
-          </p>
-        </div>
 
         {/* Category Pills & Search */}
         <CategoryFilter

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Category, Course } from '../../../core/entities';
 import { CategoryCombobox } from './CategoryCombobox';
 import { X, Sparkles, Youtube, CheckCircle2, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
+import { useGenerateCourseMutation, useGenerationStatusQuery } from '../../../application/queries/useCourseGenerationQuery';
+import { getCourseDetail } from '../../../infrastructure/api/talk2meApi';
 
 interface CreateCourseModalProps {
   isOpen: boolean;
@@ -23,17 +25,42 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
   const [youtubeUrl, setYoutubeUrl] = useState(prefillUrl);
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || 'web-dev');
   const [difficulty, setDifficulty] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Intermediate');
-  
+
   const [step, setStep] = useState<'input' | 'generating' | 'completed'>('input');
-  const [genStepIndex, setGenStepIndex] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const [createdCourse, setCreatedCourse] = useState<Course | null>(null);
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+
+  const generateMutation = useGenerateCourseMutation();
+  const { data: genStatus } = useGenerationStatusQuery(activeCourseId, step === 'generating');
 
   useEffect(() => {
     if (prefillUrl) {
       setYoutubeUrl(prefillUrl);
     }
   }, [prefillUrl]);
+
+  // React to background job status transitions while the modal is polling.
+  useEffect(() => {
+    if (!genStatus || step !== 'generating' || !activeCourseId) return;
+
+    if (genStatus.status === 'completed') {
+      getCourseDetail(activeCourseId)
+        .then((course) => {
+          setCreatedCourse(course);
+          onCourseCreated(course);
+          setStep('completed');
+        })
+        .catch((err: Error) => {
+          setErrorMsg(err.message || 'Course was generated but could not be loaded.');
+          setStep('input');
+        });
+    } else if (genStatus.status === 'failed') {
+      setErrorMsg(genStatus.lastError || 'AI course generation failed. Please try a different video.');
+      setStep('input');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genStatus, step, activeCourseId]);
 
   if (!isOpen) return null;
 
@@ -46,49 +73,38 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
 
     setErrorMsg('');
     setStep('generating');
-    setGenStepIndex(0);
-
-    const progressInterval = setInterval(() => {
-      setGenStepIndex((prev) => (prev < 3 ? prev + 1 : prev));
-    }, 1500);
 
     try {
       const selectedCat = categories.find((c) => c.id === selectedCategoryId);
-      const res = await fetch('/api/generate-course', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          youtubeUrl,
-          category: selectedCat ? selectedCat.name : 'Education & Skills',
-          difficulty,
-        }),
+      const result = await generateMutation.mutateAsync({
+        youtubeUrl,
+        category: selectedCat ? selectedCat.name : 'Education & Skills',
+        difficulty,
       });
-
-      clearInterval(progressInterval);
-      const data = await res.json();
-
-      if (!res.ok || !data.course) {
-        throw new Error(data.error || 'Failed to generate course from video.');
-      }
-
-      setGenStepIndex(3);
-      setCreatedCourse(data.course);
-      onCourseCreated(data.course);
-      setStep('completed');
+      setActiveCourseId(result.courseId);
     } catch (err: any) {
-      clearInterval(progressInterval);
       console.error('Course creation error:', err);
       setErrorMsg(err.message || 'Error creating course. Please check your YouTube link.');
       setStep('input');
     }
   };
 
+  const totalUnits = genStatus?.totalUnits || 0;
+  const completedUnits = genStatus?.completedUnits || 0;
+  const progressPercent = totalUnits > 0 ? Math.round((completedUnits / totalUnits) * 100) : 0;
+
   const stepsList = [
     'Extracting transcript & video timestamps...',
-    'Analyzing video content with Gemini 3.6 Flash...',
-    'Generating interactive Theory notes & Quizzes...',
-    'Crafting Dictation, Shadowing & Speaking exercises...',
+    `AI crew analyzing content (Theory, Quiz, Writing, Speaking)... ${progressPercent}%`,
+    'Building dictation & shadowing exercises...',
+    'Finalizing your interactive course...',
   ];
+  let genStepIndex = 0;
+  if (genStatus && totalUnits > 0) {
+    if (completedUnits === 0) genStepIndex = 1;
+    else if (completedUnits < totalUnits) genStepIndex = 2;
+    else genStepIndex = 3;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">

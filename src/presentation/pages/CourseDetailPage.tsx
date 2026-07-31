@@ -139,6 +139,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         />
       ) : activeMode === 'speaking' ? (
         <SpeakingExercise
+          courseId={course.id}
+          lessonId={currentLesson?.id}
           prompt={currentLesson?.speakingPrompt}
           youtubeVideoId={course.youtubeVideoId}
           startSeconds={currentLesson?.startSeconds}
@@ -226,6 +228,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
 
             {activeMode === 'writing' && (
               <WritingExercise
+                courseId={course.id}
+                lessonId={currentLesson?.id}
                 prompt={currentLesson?.writingPrompt}
                 onFinishWriting={() => setActiveMode('speaking')}
               />

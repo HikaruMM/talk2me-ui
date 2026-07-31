@@ -145,7 +145,7 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
 
               {/* Notification Popup */}
               {showNotifications && (
-                <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-[#1E293B] rounded-2xl shadow-xl border border-[#E4E8F0] dark:border-[#334155] p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 top-full mt-3 w-80 bg-white dark:bg-[#1E293B] rounded-2xl shadow-xl border border-[#E4E8F0] dark:border-[#334155] p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E4E8F0] dark:border-[#334155]">
                     <span className="font-bold text-sm">Thông báo</span>
                     <span className="text-[11px] text-[#2E68FF] font-semibold cursor-pointer">Đánh dấu đã đọc</span>
@@ -191,7 +191,7 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
 
                   {/* User Menu Popup */}
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-[#1E293B] rounded-3xl shadow-2xl border border-[#E4E8F0] dark:border-[#334155] p-5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-4">
+                    <div className="absolute right-0 top-full mt-3 w-80 bg-white dark:bg-[#1E293B] rounded-3xl shadow-2xl border border-[#E4E8F0] dark:border-[#334155] p-5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-4">
                       {/* User Profile Header */}
                       <div className="flex items-center gap-3 pb-3 border-b border-[#E4E8F0] dark:border-[#334155]">
                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white font-extrabold text-base flex items-center justify-center shadow-md overflow-hidden">

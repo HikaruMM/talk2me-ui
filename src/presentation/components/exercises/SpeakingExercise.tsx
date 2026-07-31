@@ -1,11 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { SpeakingPrompt, SpeakingEvaluation } from '../../../core/entities';
-import { 
-  Mic, Square, Sparkles, Volume2, Award, 
+import { evaluateSpeaking } from '../../../infrastructure/api/talk2meApi';
+import {
+  Mic, Square, Sparkles, Volume2, Award,
   RotateCcw, History, Video
 } from 'lucide-react';
 
 interface SpeakingExerciseProps {
+  courseId: string;
+  lessonId: string;
   prompt?: SpeakingPrompt;
   youtubeVideoId?: string;
   startSeconds?: number;
@@ -13,6 +16,8 @@ interface SpeakingExerciseProps {
 }
 
 export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
+  courseId,
+  lessonId,
   prompt,
   youtubeVideoId = 's3a339B-8J8',
   startSeconds = 0,
@@ -21,6 +26,7 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   const [recordedTranscript, setRecordedTranscript] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluation, setEvaluation] = useState<SpeakingEvaluation | null>(null);
+  const [evalError, setEvalError] = useState('');
   const [practiceCount, setPracticeCount] = useState(3);
   const [showCompactVideo, setShowCompactVideo] = useState(true);
 
@@ -84,36 +90,13 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
 
   const runEvaluation = async (transcriptText: string) => {
     setIsEvaluating(true);
+    setEvalError('');
     try {
-      const res = await fetch('/api/evaluate-speaking', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          promptText: topicTitle,
-          transcriptText: transcriptText,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.evaluation) {
-        setEvaluation(data.evaluation);
-      } else {
-        throw new Error('No evaluation payload');
-      }
-    } catch (err) {
-      setEvaluation({
-        overallScore: 8.0,
-        summary: 'Phát âm rất rõ ràng, ngữ điệu tự nhiên! Bạn đã sử dụng thành công cụm từ collocations ăn điểm.',
-        criteria: {
-          pronunciation: { score: 8.0, feedback: 'Âm tiết chuẩn xác; chuyển nối âm mượt mà.' },
-          fluency: { score: 8.5, feedback: 'Nói trôi chảy, không bị ngắt ấp úng.' },
-          intonation: { score: 7.5, feedback: 'Ngữ điệu tự nhiên, lên xuống giọng hợp lý.' },
-          grammarLexicon: { score: 8.0, feedback: 'Từ vựng chủ đề phong phú như "manage my time efficiently".' },
-        },
-        mispronouncedWords: [
-          { word: 'efficiently', userPhonetic: '/ɪˈfɪʃəntli/', correctPhonetic: '/ɪˈfɪʃ.ənt.li/', tip: 'Chú ý nhấn trọng âm rơi vào âm tiết thứ 2.' }
-        ]
-      });
+      const result = await evaluateSpeaking(courseId, lessonId, transcriptText);
+      setEvaluation(result);
+    } catch (err: any) {
+      console.error('Speaking evaluation failed:', err);
+      setEvalError(err.message || 'Không thể chấm điểm phần nói. Vui lòng thử lại.');
     } finally {
       setIsEvaluating(false);
     }
@@ -241,6 +224,12 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
                 {recordedTranscript && (
                   <div className="p-3.5 rounded-2xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E4E8F0] dark:border-[#334155] text-xs font-medium text-slate-800 dark:text-slate-200 italic max-h-[140px] overflow-y-auto">
                     "{recordedTranscript}"
+                  </div>
+                )}
+
+                {evalError && (
+                  <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs">
+                    {evalError}
                   </div>
                 )}
               </div>

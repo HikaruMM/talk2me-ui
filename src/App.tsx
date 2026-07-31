@@ -158,6 +158,7 @@ function AppContent() {
               () => {
                 setActiveCourse(null);
                 setCurrentTab(tab);
+                navigate(tab === 'progress' ? '/progress' : '/settings');
               },
               tab === 'progress' ? 'Báo cáo tiến độ học tập cá nhân' : 'Cài đặt tài khoản & Key AI',
               tab === 'progress'

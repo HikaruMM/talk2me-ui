@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
 import { WritingPrompt, WritingEvaluation } from '../../../core/entities';
+import { evaluateWriting } from '../../../infrastructure/api/talk2meApi';
 import { Sparkles, AlertTriangle, ArrowRight, Loader2, BookOpen, RotateCcw, Award, FileText } from 'lucide-react';
 
 interface WritingExerciseProps {
+  courseId: string;
+  lessonId: string;
   prompt?: WritingPrompt;
   onFinishWriting: () => void;
 }
 
 export const WritingExercise: React.FC<WritingExerciseProps> = ({
+  courseId,
+  lessonId,
   prompt,
   onFinishWriting,
 }) => {
   const [submissionText, setSubmissionText] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluation, setEvaluation] = useState<WritingEvaluation | null>(null);
+  const [evalError, setEvalError] = useState('');
 
   const wordCount = submissionText.trim() ? submissionText.trim().split(/\s+/).length : 0;
 
@@ -28,62 +34,14 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
     e.preventDefault();
     const textToSubmit = submissionText.trim() || sampleText;
     setIsEvaluating(true);
+    setEvalError('');
 
     try {
-      const res = await fetch('/api/evaluate-writing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          promptText: prompt?.promptText || 'Summarize key takeaways in 100-150 words.',
-          userSubmission: textToSubmit,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.evaluation) {
-        setEvaluation(data.evaluation);
-      } else {
-        throw new Error('API returned empty evaluation');
-      }
-    } catch (err) {
-      console.error('Writing assessment fallback:', err);
-      setEvaluation({
-        overallScore: 7.5,
-        summary: 'Strong response with clear structure and good contextual vocabulary. Minor grammar and transitional linking tweaks will lift your response to Band 8.0+.',
-        criteria: {
-          taskResponse: {
-            score: 7.5,
-            feedback: 'Addresses all key requirements of the prompt with relevant details and logical arguments.',
-          },
-          coherenceCohesion: {
-            score: 7.0,
-            feedback: 'Paragraphing is logical. Use more varied cohesive devices like "furthermore" or "subsequently".',
-          },
-          lexicalResource: {
-            score: 8.0,
-            feedback: 'Good range of topic-specific vocabulary (e.g., "semantic tags", "accessibility", "hierarchy").',
-          },
-          grammaticalAccuracy: {
-            score: 7.5,
-            feedback: 'Mostly error-free complex structures with precise clause relationships.',
-          },
-        },
-        highlightedErrors: [
-          {
-            originalText: 'article and nav',
-            suggestedText: '<article> and <nav>',
-            errorType: 'punctuation',
-            explanation: 'Enclose HTML tag references in code brackets for technical clarity.',
-          },
-          {
-            originalText: 'like article',
-            suggestedText: 'such as <article>',
-            errorType: 'vocabulary',
-            explanation: '"Such as" is preferred over "like" in formal technical writing.',
-          },
-        ],
-        improvedModelAnswer: `Semantic HTML elements such as <article> and <nav> serve as the foundational backbone for modern accessible web applications. These meaningful tags allow search engines to accurately index page hierarchy while simultaneously enabling screen readers to deliver seamless navigation for visually impaired users.`,
-      });
+      const result = await evaluateWriting(courseId, lessonId, textToSubmit);
+      setEvaluation(result);
+    } catch (err: any) {
+      console.error('Writing evaluation failed:', err);
+      setEvalError(err.message || 'Không thể chấm điểm bài viết. Vui lòng thử lại.');
     } finally {
       setIsEvaluating(false);
     }
@@ -147,6 +105,13 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
             className="w-full p-4 rounded-2xl bg-[#F1F4F9] dark:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] text-sm text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#F79009] focus:outline-none placeholder-[#95A0B4]"
           />
         </div>
+
+        {evalError && (
+          <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{evalError}</span>
+          </div>
+        )}
 
         {!evaluation && (
           <div className="flex flex-col sm:flex-row items-center gap-3">
