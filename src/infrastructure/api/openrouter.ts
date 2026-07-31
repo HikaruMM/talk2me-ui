@@ -78,6 +78,21 @@ export async function fetchLiveModels(): Promise<OpenRouterModel[]> {
   return models;
 }
 
+const DEPRECATED_MODEL_KEYWORDS = [
+  'gemini-2.0-flash-exp',
+  'gemini-exp',
+  'gemini-2.0-pro-exp',
+];
+
+export function sanitizeModelId(modelId?: string, fallback = 'openai/gpt-oss-20b:free'): string {
+  if (!modelId || typeof modelId !== 'string') return fallback;
+  const lower = modelId.toLowerCase();
+  if (DEPRECATED_MODEL_KEYWORDS.some((kw) => lower.includes(kw))) {
+    return fallback;
+  }
+  return modelId;
+}
+
 const STORAGE_KEY = 't2m_openrouter_config';
 
 export function getStoredConfig(): OpenRouterConfig {
@@ -85,12 +100,16 @@ export function getStoredConfig(): OpenRouterConfig {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return DEFAULT_CONFIG;
     const parsed = JSON.parse(saved);
+    const rawModels = parsed.models || {};
     return {
       ...DEFAULT_CONFIG,
       ...parsed,
       models: {
-        ...DEFAULT_CONFIG.models,
-        ...(parsed.models || {}),
+        defaultModel: sanitizeModelId(rawModels.defaultModel, DEFAULT_CONFIG.models.defaultModel),
+        courseGenerator: sanitizeModelId(rawModels.courseGenerator, DEFAULT_CONFIG.models.courseGenerator),
+        flashcardGenerator: sanitizeModelId(rawModels.flashcardGenerator, DEFAULT_CONFIG.models.flashcardGenerator),
+        writingGrader: sanitizeModelId(rawModels.writingGrader, DEFAULT_CONFIG.models.writingGrader),
+        quizGenerator: sanitizeModelId(rawModels.quizGenerator, DEFAULT_CONFIG.models.quizGenerator),
       },
     };
   } catch {
@@ -155,7 +174,7 @@ export async function generateCompletion(
 ): Promise<string> {
   const config = getStoredConfig();
   const apiKey = config.useCustomKey && config.apiKey.trim() ? config.apiKey.trim() : '';
-  const selectedModel = modelId || config.models.defaultModel || 'openai/gpt-oss-20b:free';
+  const selectedModel = sanitizeModelId(modelId || config.models.defaultModel);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
