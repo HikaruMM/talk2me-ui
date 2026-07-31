@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Course, Category, UserProfile } from './core/entities';
 import { INITIAL_CATEGORIES } from './infrastructure/data/mockCourses';
 import { 
@@ -10,6 +11,7 @@ import {
   useAuth,
   useCourses
 } from './application';
+import { QueryProvider } from './application/providers/QueryProvider';
 import { HeaderTopNav, FooterSection } from './presentation/layout';
 import { AuthModal, AuthRequirementModal } from './presentation/components/auth';
 import { CreateCourseModal } from './presentation/components/course';
@@ -28,6 +30,7 @@ function AppContent() {
   const { darkMode, setDarkMode } = useTheme();
   const { user, login, logout } = useAuth();
   const { courses, addCourse, categories, addCategory } = useCourses();
+  const navigate = useNavigate();
 
   const [currentTab, setCurrentTab] = useState<string>('home');
   const [streakCount] = useState<number>(5);
@@ -49,11 +52,10 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
 
-  // Modal State
+  // Modal create course
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [prefillUrl, setPrefillUrl] = useState<string>('');
 
-  // Authorization Guard helper
   const requireAuth = (
     action: () => void,
     title = 'Tính năng này yêu cầu đăng nhập',
@@ -95,18 +97,17 @@ function AppContent() {
 
   const handleLogout = () => {
     logout();
-    setCurrentTab('home');
+    navigate('/');
   };
 
-  const handleOpenCreateModal = (url?: string) => {
+  const handleOpenCreateModal = (url = '') => {
     requireAuth(
       () => {
-        if (url) setPrefillUrl(url);
-        else setPrefillUrl('');
+        setPrefillUrl(url);
         setIsCreateModalOpen(true);
       },
-      'Tạo khóa học AI yêu cầu tài khoản',
-      'Đăng nhập để AI khởi tạo nội dung khóa học theo đường dẫn YouTube và đồng bộ dữ liệu bài học vào tài khoản cá nhân của bạn.'
+      'Tạo khóa học AI mới',
+      'Đăng nhập tài khoản Talk2Me để hệ thống phân tích video YouTube và sinh ra khóa học cá nhân hóa cho riêng bạn.'
     );
   };
 
@@ -114,6 +115,8 @@ function AppContent() {
     addCourse(newCourse);
     setActiveCourse(newCourse);
     setCurrentTab('course-detail');
+    setIsCreateModalOpen(false);
+    navigate('/courses');
   };
 
   const handleCreateCategory = (name: string) => {
@@ -167,90 +170,103 @@ function AppContent() {
         onOpenAuth={(mode) => handleOpenAuth(mode)}
       />
 
-      {/* Main Page Content Body */}
+      {/* Main Page Content Body with React Router Routes */}
       <main className="flex-1">
-
-        {/* HOME PAGE */}
-        {currentTab === 'home' && (
-          <div className="py-8">
-            <HomePage
-              courses={filteredCourses}
-              categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
-              selectedCategory={selectedCategory}
-              onSelectCategory={setSelectedCategory}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              onSelectCourse={(courseId) => {
-                const targetCourse = courses.find((c) => c.id === courseId) || courses[0];
-                setActiveCourse(targetCourse);
-                setCurrentTab('course-detail');
-              }}
-              onCreateCourseClick={handleOpenCreateModal}
-            />
-          </div>
-        )}
-
-        {/* COURSES LIBRARY PAGE */}
-        {currentTab === 'courses' && (
-          <CoursesPage
-            courses={courses}
-            categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onSelectCourse={(course) => {
-              setActiveCourse(course);
-              setCurrentTab('course-detail');
-            }}
-            onCreateCourseClick={handleOpenCreateModal}
+        <Routes>
+          {/* HOME PAGE ROUTE */}
+          <Route 
+            path="/" 
+            element={
+              <div className="py-8">
+                <HomePage
+                  courses={filteredCourses}
+                  categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
+                  selectedCategory={selectedCategory}
+                  onSelectCategory={setSelectedCategory}
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  onSelectCourse={(courseId) => {
+                    const targetCourse = courses.find((c) => c.id === courseId) || courses[0];
+                    setActiveCourse(targetCourse);
+                    setCurrentTab('course-detail');
+                    navigate('/courses');
+                  }}
+                  onCreateCourseClick={handleOpenCreateModal}
+                />
+              </div>
+            } 
           />
-        )}
 
-        {/* FLASHCARDS PAGE */}
-        {currentTab === 'flashcards' && <FlashcardsPage />}
-
-        {/* ANALYTICS PAGE */}
-        {currentTab === 'progress' && <AnalyticsPage />}
-
-        {/* COMMUNITY PAGE */}
-        {currentTab === 'community' && (
-          <CommunityPage
-            onSelectCourse={(courseId) => {
-              const targetCourse = courses.find((c) => c.id === courseId) || courses[0];
-              if (targetCourse) {
-                setActiveCourse(targetCourse);
-                setCurrentTab('course-detail');
-              }
-            }}
-            onOpenFlashcards={() => setCurrentTab('flashcards')}
+          {/* COURSES LIBRARY ROUTE */}
+          <Route 
+            path="/courses" 
+            element={
+              activeCourse ? (
+                <CourseDetailPage
+                  course={activeCourse}
+                  onBack={() => {
+                    setActiveCourse(null);
+                    setCurrentTab('courses');
+                  }}
+                  onOpenCreateModal={handleOpenCreateModal}
+                />
+              ) : (
+                <CoursesPage
+                  courses={courses}
+                  categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
+                  selectedCategory={selectedCategory}
+                  onSelectCategory={setSelectedCategory}
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  onSelectCourse={(course) => {
+                    setActiveCourse(course);
+                    setCurrentTab('course-detail');
+                  }}
+                  onCreateCourseClick={handleOpenCreateModal}
+                />
+              )
+            } 
           />
-        )}
 
-        {/* SETTINGS PAGE */}
-        {currentTab === 'settings' && <SettingsPage onBack={() => setCurrentTab('home')} />}
+          {/* FLASHCARDS ROUTE */}
+          <Route path="/flashcards" element={<FlashcardsPage />} />
 
-        {/* AUTH PAGE */}
-        {currentTab === 'auth' && (
-          <AuthPage
-            initialMode={authInitialMode}
-            redirectReason={authRedirectReason}
-            onLoginSuccess={handleLoginSuccess}
+          {/* ANALYTICS / PROGRESS ROUTE */}
+          <Route path="/progress" element={<AnalyticsPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+
+          {/* COMMUNITY ROUTE */}
+          <Route 
+            path="/community" 
+            element={
+              <CommunityPage
+                onSelectCourse={(courseId) => {
+                  const targetCourse = courses.find((c) => c.id === courseId) || courses[0];
+                  if (targetCourse) {
+                    setActiveCourse(targetCourse);
+                    navigate('/courses');
+                  }
+                }}
+                onOpenFlashcards={() => navigate('/flashcards')}
+              />
+            } 
           />
-        )}
 
-        {/* COURSE DETAIL PAGE */}
-        {currentTab === 'course-detail' && activeCourse && (
-          <CourseDetailPage
-            course={activeCourse}
-            onBack={() => {
-              setActiveCourse(null);
-              setCurrentTab('home');
-            }}
-            onOpenCreateModal={handleOpenCreateModal}
+          {/* SETTINGS ROUTE */}
+          <Route path="/settings" element={<SettingsPage onBack={() => navigate('/')} />} />
+
+          {/* AUTH ROUTE */}
+          <Route 
+            path="/auth" 
+            element={
+              <AuthPage
+                initialMode={authInitialMode}
+                redirectReason={authRedirectReason}
+                onLoginSuccess={handleLoginSuccess}
+              />
+            } 
           />
-        )}
-
+        </Routes>
       </main>
 
       {/* Footer Section */}
@@ -290,15 +306,19 @@ function AppContent() {
 
 export function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <CourseProvider>
-          <FlashcardProvider>
-            <AppContent />
-          </FlashcardProvider>
-        </CourseProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <CourseProvider>
+            <FlashcardProvider>
+              <BrowserRouter>
+                <AppContent />
+              </BrowserRouter>
+            </FlashcardProvider>
+          </CourseProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryProvider>
   );
 }
 

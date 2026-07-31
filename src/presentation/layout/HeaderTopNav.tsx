@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { UserProfile } from '../../core/entities';
 import { 
   Sparkles, 
@@ -43,13 +44,15 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const navItems = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'courses', label: 'Courses', icon: BookOpen },
-    { id: 'flashcards', label: 'Flashcards', icon: Layers },
-    { id: 'progress', label: 'Progress', icon: BarChart3 },
-    { id: 'community', label: 'Community', icon: Users },
+    { id: 'home', label: 'Home', path: '/', icon: Home },
+    { id: 'courses', label: 'Courses', path: '/courses', icon: BookOpen },
+    { id: 'flashcards', label: 'Flashcards', path: '/flashcards', icon: Layers },
+    { id: 'progress', label: 'Progress', path: '/progress', icon: BarChart3 },
+    { id: 'community', label: 'Community', path: '/community', icon: Users },
   ];
 
   return (
@@ -58,7 +61,8 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
         <div className="flex items-center justify-between h-20 gap-4">
           
           {/* Logo Brand */}
-          <div 
+          <Link 
+            to="/"
             onClick={() => setCurrentTab('home')}
             className="flex items-center gap-3 cursor-pointer group shrink-0"
           >
@@ -78,18 +82,21 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
                 AI Video & Skill Platform
               </p>
             </div>
-          </div>
+          </Link>
 
           {/* Top Navigation Bar Tabs */}
           <nav className="hidden xl:flex items-center gap-1 bg-[#F1F4F9] dark:bg-[#273449] p-1.5 rounded-full border border-[#E4E8F0] dark:border-[#334155] shrink-0">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = currentTab === item.id;
+              const isActive = location.pathname === item.path || currentTab === item.id;
               return (
                 <button
                   key={item.id}
-                  onClick={() => setCurrentTab(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all duration-200 ${
+                  onClick={() => {
+                    setCurrentTab(item.id);
+                    navigate(item.path);
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all duration-200 cursor-pointer ${
                     isActive
                       ? 'bg-[#2E68FF] text-white shadow-sm'
                       : 'text-[#5A6478] dark:text-[#CBD5E1] hover:text-[#1B1F2E] dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
