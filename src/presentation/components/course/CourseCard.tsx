@@ -154,12 +154,12 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, onSelectCourse }
         {course.progressPercent > 0 ? (
           <>
             <CheckCircle className="w-4 h-4 text-emerald-500" />
-            <span>Continue ({course.progressPercent}%)</span>
+            <span>Tiếp tục học ({course.progressPercent}%)</span>
           </>
         ) : (
           <>
             <BookOpen className="w-4 h-4" />
-            <span>Start Learning</span>
+            <span>Học ngay</span>
           </>
         )}
       </button>

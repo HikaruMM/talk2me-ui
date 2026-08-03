@@ -46,7 +46,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
   const handleStartGeneration = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!youtubeUrl.trim()) {
-      setErrorMsg('Please paste a valid YouTube URL');
+      setErrorMsg('Vui lòng nhập đường dẫn YouTube hợp lệ.');
       return;
     }
 
@@ -56,17 +56,14 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
       const selectedCat = categories.find((c) => c.id === selectedCategoryId);
       await generateMutation.mutateAsync({
         youtubeUrl,
-        category: selectedCat ? selectedCat.name : 'Education & Skills',
+        category: selectedCat ? selectedCat.name : 'Tất Cả Khóa Học',
         difficulty,
       });
-      // Job kicked off successfully — the course now shows up (in a 'processing' state) in
-      // the Courses grid, so this popup has nothing left to track; reset for next time and
-      // hand off to the parent (close + toast + navigate).
       resetForm();
       onCourseQueued();
     } catch (err: any) {
       console.error('Course creation error:', err);
-      setErrorMsg(err.message || 'Error creating course. Please check your YouTube link.');
+      setErrorMsg(err.message || 'Lỗi khởi tạo khóa học. Vui lòng kiểm tra lại liên kết YouTube.');
     }
   };
 
@@ -89,10 +86,10 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
           </div>
           <div>
             <h3 className="text-xl font-extrabold text-[#1B1F2E] dark:text-white">
-              AI Course Generator
+              Tạo Khóa Học AI
             </h3>
             <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1]">
-              Transform any YouTube video into an interactive learning course
+              Chuyển đổi mọi video YouTube thành khóa học tiếng Anh tương tác
             </p>
           </div>
         </div>
@@ -110,7 +107,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
           {/* YouTube Link Input */}
           <div>
             <label className="block text-xs font-bold text-[#1B1F2E] dark:text-[#F1F5F9] mb-1.5 uppercase tracking-wider">
-              YouTube Video Link
+              Đường Dẫn Video YouTube
             </label>
             <div className="relative">
               <Youtube className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-red-500" />
@@ -139,21 +136,25 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
           {/* Difficulty Level Selector */}
           <div>
             <label className="block text-xs font-bold text-[#1B1F2E] dark:text-[#F1F5F9] mb-1.5 uppercase tracking-wider">
-              Target Skill Level
+              Trình Độ Mục Tiêu
             </label>
             <div className="grid grid-cols-3 gap-2">
-              {(['Beginner', 'Intermediate', 'Advanced'] as const).map((lvl) => (
+              {[
+                { id: 'Beginner', label: 'Sơ cấp' },
+                { id: 'Intermediate', label: 'Trung cấp' },
+                { id: 'Advanced', label: 'Nâng cao' },
+              ].map((lvl) => (
                 <button
-                  key={lvl}
+                  key={lvl.id}
                   type="button"
-                  onClick={() => setDifficulty(lvl)}
+                  onClick={() => setDifficulty(lvl.id as any)}
                   className={`py-2.5 rounded-2xl text-xs font-bold transition-all ${
-                    difficulty === lvl
+                    difficulty === lvl.id
                       ? 'bg-[#2E68FF] text-white shadow-sm'
                       : 'bg-[#F1F4F9] dark:bg-[#273449] text-[#5A6478] dark:text-[#CBD5E1] hover:bg-[#EAF1FF]'
                   }`}
                 >
-                  {lvl}
+                  {lvl.label}
                 </button>
               ))}
             </div>
@@ -170,7 +171,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
             ) : (
               <Sparkles className="w-4 h-4 fill-white" />
             )}
-            <span>Generate AI Course Now</span>
+            <span>Bắt Đầu Tạo Khóa Học AI</span>
           </button>
         </form>
       </div>

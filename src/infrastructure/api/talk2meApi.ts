@@ -12,6 +12,7 @@ interface LLMConfigPayload {
     quizGenerator: string;
     writingGrader: string;
   };
+  outputLanguage: string;
 }
 
 /**
@@ -28,6 +29,7 @@ export function buildLlmConfig(): LLMConfigPayload {
       quizGenerator: config.models.quizGenerator,
       writingGrader: config.models.writingGrader,
     },
+    outputLanguage: 'vi',
   };
 }
 

@@ -36,17 +36,17 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             {/* Top Eyebrow Tag */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/60 text-[#2E68FF] dark:text-[#5B8CFF] text-xs font-bold tracking-wide uppercase">
               <Sparkles className="w-3.5 h-3.5 fill-[#2E68FF]" />
-              <span>AI-Powered Video Learning Platform</span>
+              <span>Nền Tảng Học Tiếng Anh AI từ Video YouTube</span>
             </div>
 
             {/* Display Typography */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#1B1F2E] dark:text-white tracking-tight leading-[1.12]">
-              Shape Your Future with the <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2E68FF] via-[#7C5CFC] to-[#0EA5C4]">Right Knowledge</span>
+              Chinh Phục Tiếng Anh cùng <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2E68FF] via-[#7C5CFC] to-[#0EA5C4]">Tri Thức Đúng Đắn</span>
             </h1>
 
             {/* Subtitle */}
             <p className="text-base sm:text-lg text-[#5A6478] dark:text-[#CBD5E1] max-w-2xl font-normal leading-relaxed">
-              Discover a world of interactive knowledge with our cutting-edge AI video courses. Turn any YouTube video into theory notes, quizzes, dictation, shadowing, and speaking exercises.
+              Khám phá thế giới kiến thức tương tác từ các video YouTube yêu thích. Tự động biến video thành bài giảng Lý thuyết, Trắc nghiệm, Nghe-Chép chính tả, Nhại giọng và Luyện nói phản xạ.
             </p>
 
             {/* Interactive Youtube URL Converter Box */}
@@ -57,7 +57,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                   type="text"
                   value={youtubeUrl}
                   onChange={(e) => setYoutubeUrl(e.target.value)}
-                  placeholder="Paste YouTube link (e.g. TED Talk, Coding...)"
+                  placeholder="Dán liên kết YouTube (ví dụ: TED Talk, VOA, BBC...)"
                   className="w-full text-sm bg-transparent border-none text-[#1B1F2E] dark:text-[#F1F5F9] focus:outline-none placeholder-[#95A0B4]"
                 />
               </div>
@@ -65,7 +65,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 type="submit"
                 className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-[#1B1F2E] hover:bg-[#2E68FF] dark:bg-[#2E68FF] dark:hover:bg-[#1E52DB] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg transition-all shrink-0 group"
               >
-                <span>CREATE COURSE</span>
+                <span>TẠO KHÓA HỌC</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
             </form>
@@ -76,7 +76,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 onClick={() => onOpenCreateModal()}
                 className="px-8 py-4 rounded-full bg-[#1B1F2E] hover:bg-[#2E68FF] dark:bg-[#2E68FF] dark:hover:bg-[#1E52DB] text-white text-sm font-bold flex items-center gap-3 shadow-xl transition-all"
               >
-                <span>GET STARTED</span>
+                <span>BẮT ĐẦU NGAY</span>
                 <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
                   <ArrowRight className="w-4 h-4" />
                 </div>
@@ -87,7 +87,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 className="px-6 py-4 rounded-full bg-white dark:bg-[#1E293B] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] text-[#1B1F2E] dark:text-[#F1F5F9] text-sm font-bold flex items-center gap-2 transition-all"
               >
                 <Play className="w-4 h-4 fill-[#2E68FF] text-[#2E68FF]" />
-                <span>Browse Library</span>
+                <span>Khám Phá Thư Viện</span>
               </button>
             </div>
 
@@ -95,15 +95,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             <div className="pt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-[#5A6478] dark:text-[#CBD5E1] font-semibold">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
-                <span>AI Quiz & Theory</span>
+                <span>Lý thuyết & Trắc nghiệm AI</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
-                <span>Dictation & Shadowing</span>
+                <span>Nghe-Chép & Nhại giọng</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
-                <span>SRS Flashcards</span>
+                <span>Thẻ từ vựng SRS</span>
               </div>
             </div>
 
@@ -130,8 +130,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 <img className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 object-cover" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100" alt="Student" />
               </div>
               <div>
-                <p className="text-[11px] font-bold text-[#2E68FF]">More than 600,000+</p>
-                <p className="text-xs font-extrabold text-[#1B1F2E] dark:text-white">Active Learners</p>
+                <p className="text-[11px] font-bold text-[#2E68FF]">Hơn 600,000+</p>
+                <p className="text-xs font-extrabold text-[#1B1F2E] dark:text-white">Học viên chủ động</p>
               </div>
             </div>
 
@@ -141,8 +141,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 ⚡
               </div>
               <div>
-                <p className="text-xs font-bold text-[#1B1F2E] dark:text-white">6 Learning Modes</p>
-                <p className="text-[10px] text-[#5A6478] dark:text-[#CBD5E1]">Theory, Quiz, Dictation, Speaking</p>
+                <p className="text-xs font-bold text-[#1B1F2E] dark:text-white">6 Chế độ học tương tác</p>
+                <p className="text-[10px] text-[#5A6478] dark:text-[#CBD5E1]">Lý thuyết, Trắc nghiệm, Chính tả, Luyện nói</p>
               </div>
             </div>
 
