@@ -127,10 +127,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   };
 
   const handleSaveAll = () => {
+    const trimmedKey = apiKeyInput.trim();
     const updatedConfig: GeminiConfig = {
       ...config,
-      apiKey: apiKeyInput.trim(),
-      useCustomKey: apiKeyInput.trim() ? config.useCustomKey : false,
+      apiKey: trimmedKey,
+      useCustomKey: Boolean(trimmedKey),
     };
     setConfig(updatedConfig);
     saveStoredConfig(updatedConfig);

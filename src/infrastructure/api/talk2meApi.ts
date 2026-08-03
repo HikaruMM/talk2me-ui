@@ -21,8 +21,9 @@ interface LLMConfigPayload {
  */
 export function buildLlmConfig(): LLMConfigPayload {
   const config = getStoredConfig();
+  const customKey = config.apiKey ? config.apiKey.trim() : '';
   return {
-    apiKey: config.useCustomKey && config.apiKey.trim() ? config.apiKey.trim() : '',
+    apiKey: customKey,
     models: {
       defaultModel: config.models.defaultModel,
       courseGenerator: config.models.courseGenerator,
