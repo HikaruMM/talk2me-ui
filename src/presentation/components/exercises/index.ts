@@ -1,3 +1,4 @@
+export * from './CompletedModeGate';
 export * from './TheoryReader';
 export * from './QuizPlayer';
 export * from './DictationExercise';

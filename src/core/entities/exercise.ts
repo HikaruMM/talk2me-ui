@@ -1,5 +1,12 @@
 export type LearningModeType = 'theory' | 'quiz' | 'dictation' | 'shadowing' | 'writing' | 'speaking';
 
+/** A user's latest saved attempt for one mode of one lesson — always the most recent
+ * (server upserts by (user, lesson, mode), never keeps history). */
+export interface ModeProgress {
+  completed: boolean;
+  accuracy: number | null;
+}
+
 export interface QuizQuestion {
   id: string;
   question: string;
@@ -31,6 +38,7 @@ export interface ShadowingLine {
 export interface WritingPrompt {
   id: string;
   promptText: string;
+  hintText?: string;
   suggestedWordCount: number;
   sampleAnswer?: string;
 }
@@ -38,6 +46,7 @@ export interface WritingPrompt {
 export interface SpeakingPrompt {
   id: string;
   promptText: string;
+  hintText?: string;
   sampleRecordingUrl?: string;
   phoneticGuide?: string;
 }

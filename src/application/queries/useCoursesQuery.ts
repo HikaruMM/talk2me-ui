@@ -53,3 +53,27 @@ export const useAddCourseMutation = () => {
     },
   });
 };
+
+export const useDeleteCourseMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (courseId: string) => {
+      // 1. Call API delete
+      const api = await import('../../infrastructure/api/talk2meApi');
+      await api.deleteCourse(courseId);
+
+      // 2. Clean up localStorage fallback
+      const saved = localStorage.getItem('talk2me_courses');
+      if (saved) {
+        const existing: Course[] = JSON.parse(saved);
+        const updated = existing.filter((c) => c.id !== courseId);
+        localStorage.setItem('talk2me_courses', JSON.stringify(updated));
+      }
+      return courseId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
+    },
+  });
+};
+

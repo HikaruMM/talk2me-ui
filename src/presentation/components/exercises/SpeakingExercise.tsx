@@ -1,15 +1,17 @@
 import React, { useState, useRef } from 'react';
-import { SpeakingPrompt, SpeakingEvaluation } from '../../../core/entities';
+import { SpeakingPrompt, SpeakingEvaluation, ModeProgress } from '../../../core/entities';
 import { evaluateSpeaking } from '../../../infrastructure/api/talk2meApi';
 import {
-  Mic, Square, Sparkles, Volume2, Award,
-  RotateCcw, History, Video
+  Mic, Square, Sparkles, Volume2, Award, Send,
+  RotateCcw, History, Video, Lightbulb, Loader2
 } from 'lucide-react';
+import { CompletedModeGate } from './CompletedModeGate';
 
 interface SpeakingExerciseProps {
   courseId: string;
   lessonId: string;
   prompt?: SpeakingPrompt;
+  progress?: ModeProgress;
   youtubeVideoId?: string;
   startSeconds?: number;
   onFinishSpeaking: () => void;
@@ -19,8 +21,10 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   courseId,
   lessonId,
   prompt,
+  progress,
   youtubeVideoId = 's3a339B-8J8',
   startSeconds = 0,
+  onFinishSpeaking,
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedTranscript, setRecordedTranscript] = useState('');
@@ -29,6 +33,10 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   const [evalError, setEvalError] = useState('');
   const [practiceCount, setPracticeCount] = useState(3);
   const [showCompactVideo, setShowCompactVideo] = useState(true);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  /** true after user stops recording — enables the "Submit" button */
+  const [hasStopped, setHasStopped] = useState(false);
 
   const [pronounceWordInput, setPronounceWordInput] = useState('');
   const [aiAssistantMessages, setAiAssistantMessages] = useState<Array<{ role: 'ai' | 'user', text: string }>>([
@@ -36,6 +44,17 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   ]);
 
   const recognitionRef = useRef<any>(null);
+
+  if (progress?.completed && !isRetrying && !evaluation) {
+    return (
+      <CompletedModeGate
+        title="Bạn đã hoàn thành Speaking này"
+        scoreLabel={progress.accuracy != null ? `Band ${progress.accuracy}` : undefined}
+        onRetry={() => setIsRetrying(true)}
+        onContinue={onFinishSpeaking}
+      />
+    );
+  }
 
   const topicTitle = prompt?.promptText || "Do you wear a watch or describe a favorite piece of technology?";
 
@@ -51,6 +70,9 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   const startRecording = () => {
     setIsRecording(true);
     setRecordedTranscript('');
+    setHasStopped(false);
+    setEvaluation(null);
+    setEvalError('');
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -62,7 +84,7 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
 
         recognitionRef.current.onresult = (event: any) => {
           let transcript = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
+          for (let i = 0; i < event.results.length; ++i) {
             transcript += event.results[i][0].transcript;
           }
           setRecordedTranscript(transcript);
@@ -70,29 +92,35 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
 
         recognitionRef.current.start();
       } catch (e) {
-        setRecordedTranscript("I wear a watch every day because it helps me manage my time efficiently and complements my personal style.");
+        console.warn('Speech recognition failed to start:', e);
+        setIsRecording(false);
+        setEvalError('Không thể khởi động nhận diện giọng nói. Hãy thử dùng Chrome.');
       }
     } else {
-      setRecordedTranscript("I wear a watch every day because it helps me manage my time efficiently and complements my personal style.");
+      setIsRecording(false);
+      setEvalError('Trình duyệt không hỗ trợ nhận diện giọng nói. Hãy sử dụng Google Chrome.');
     }
   };
 
-  const stopRecording = async () => {
+  const stopRecording = () => {
     setIsRecording(false);
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch (e) {}
     }
-
-    const textToEvaluate = recordedTranscript.trim() || "I wear a watch every day because it helps me manage my time efficiently and complements my personal style.";
-    setPracticeCount(prev => prev + 1);
-    runEvaluation(textToEvaluate);
+    setHasStopped(true);
   };
 
-  const runEvaluation = async (transcriptText: string) => {
+  const handleSubmitForEvaluation = async () => {
+    const textToEvaluate = recordedTranscript.trim();
+    if (!textToEvaluate) {
+      setEvalError('Không nhận được giọng nói. Vui lòng ghi âm lại và nói rõ hơn.');
+      return;
+    }
+    setPracticeCount(prev => prev + 1);
     setIsEvaluating(true);
     setEvalError('');
     try {
-      const result = await evaluateSpeaking(courseId, lessonId, transcriptText);
+      const result = await evaluateSpeaking(courseId, lessonId, textToEvaluate);
       setEvaluation(result);
     } catch (err: any) {
       console.error('Speaking evaluation failed:', err);
@@ -100,6 +128,13 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
     } finally {
       setIsEvaluating(false);
     }
+  };
+
+  const handleReset = () => {
+    setRecordedTranscript('');
+    setHasStopped(false);
+    setEvaluation(null);
+    setEvalError('');
   };
 
   const handleRequestSampleAnswer = () => {
@@ -156,15 +191,15 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
           className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-colors"
         >
           <Video className="w-3.5 h-3.5" />
-          <span>{showCompactVideo ? 'Thu nhỏ / Ẩn Video' : 'Hiện Video bài học'}</span>
+          <span>{showCompactVideo ? 'Ẩn Video' : 'Hiện Video bài học'}</span>
         </button>
       </div>
 
-      {/* HARMONIOUS 3-PART WORKSPACE */}
+      {/* 3-PART WORKSPACE */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         
         {showCompactVideo && (
-          <div className="lg:col-span-3 space-y-4 bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-3xl border border-[#E4E8F0] dark:border-[#334155] shadow-sm flex flex-col justify-between min-h-[460px]">
+          <div className="lg:col-span-3 space-y-4 bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-3xl border border-[#E4E8F0] dark:border-[#334155] shadow-sm flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -196,8 +231,10 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
           </div>
         )}
 
+        {/* ── CENTER: Speaking topic + Record + Transcript ── */}
         <div className={`${showCompactVideo ? 'lg:col-span-5' : 'lg:col-span-7'} space-y-4 bg-white dark:bg-[#1E293B] p-5 sm:p-6 rounded-3xl border border-[#E4E8F0] dark:border-[#334155] shadow-sm flex flex-col justify-between min-h-[460px]`}>
           
+          {/* Topic question */}
           <div className="space-y-3 text-center">
             <span className="inline-block px-3.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950 text-[#12B76A] font-extrabold text-xs uppercase tracking-wider border border-emerald-200 dark:border-emerald-800">
               Câu hỏi nói (Speaking Topic)
@@ -205,25 +242,111 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
             <h2 className="text-base sm:text-lg font-extrabold text-[#1B1F2E] dark:text-white leading-snug">
               "{topicTitle}"
             </h2>
+
+            {prompt?.hintText && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowHint((v) => !v)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:underline"
+                >
+                  <Lightbulb className="w-3 h-3" />
+                  <span>{showHint ? 'Ẩn gợi ý' : 'Xem gợi ý'}</span>
+                </button>
+                {showHint && (
+                  <p className="text-[11px] text-[#5A6478] dark:text-[#94A3B8] mt-1">{prompt.hintText}</p>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="my-3 space-y-3">
+          {/* ── Transcript box + controls ── */}
+          <div className="flex-1 flex flex-col gap-3 my-3">
             {!evaluation ? (
-              <div className="space-y-3 text-center">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                  Nhấn nút <span className="font-extrabold text-emerald-600">Ghi âm ngay</span> bên dưới để phát biểu trả lời.
-                </p>
-
-                {isRecording && (
-                  <div className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 text-red-600 font-bold text-xs flex items-center justify-center gap-2 animate-pulse">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                    <span>Đang ghi âm... Hãy phát biểu tự nhiên!</span>
+              <>
+                {/* Live transcript area */}
+                <div className={`flex-1 relative rounded-2xl border-2 transition-all overflow-hidden ${
+                  isRecording
+                    ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-950/20'
+                    : hasStopped && recordedTranscript.trim()
+                    ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-950/20'
+                    : 'border-[#E4E8F0] dark:border-[#334155] bg-[#F8FAFC] dark:bg-[#0F172A]'
+                }`}>
+                  {/* Status indicator */}
+                  <div className={`px-4 py-2 border-b flex items-center gap-2 ${
+                    isRecording
+                      ? 'border-red-200 dark:border-red-800 bg-red-100/60 dark:bg-red-950/40'
+                      : hasStopped && recordedTranscript.trim()
+                      ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-100/60 dark:bg-emerald-950/40'
+                      : 'border-[#E4E8F0] dark:border-[#334155]'
+                  }`}>
+                    {isRecording ? (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        <span className="text-[11px] font-bold text-red-600 dark:text-red-400">
+                          Đang nghe... Hãy nói tự nhiên!
+                        </span>
+                      </>
+                    ) : hasStopped && recordedTranscript.trim() ? (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                          Đã ghi nhận — xem lại văn bản bên dưới
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-[11px] font-medium text-[#95A0B4] dark:text-[#64748B]">
+                        Nhấn nút Ghi âm để bắt đầu nói
+                      </span>
+                    )}
                   </div>
-                )}
 
-                {recordedTranscript && (
-                  <div className="p-3.5 rounded-2xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E4E8F0] dark:border-[#334155] text-xs font-medium text-slate-800 dark:text-slate-200 italic max-h-[140px] overflow-y-auto">
-                    "{recordedTranscript}"
+                  {/* Transcript content (read-only) */}
+                  <div className="px-4 py-3 min-h-[120px] max-h-[200px] overflow-y-auto">
+                    {recordedTranscript ? (
+                      <p className="text-sm text-[#1B1F2E] dark:text-[#E2E8F0] leading-relaxed font-medium select-text">
+                        {recordedTranscript}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-[#95A0B4] dark:text-[#64748B] italic">
+                        {isRecording ? 'Đang chờ giọng nói...' : 'Văn bản sẽ hiển thị ở đây khi bạn nói...'}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Submit button — only after stopping with transcript */}
+                  {hasStopped && recordedTranscript.trim() && !isEvaluating && (
+                    <div className="px-4 py-3 border-t border-[#E4E8F0] dark:border-[#334155] flex items-center justify-between gap-3">
+                      <button
+                        onClick={handleReset}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-[#5A6478] dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Ghi âm lại</span>
+                      </button>
+                      <button
+                        onClick={handleSubmitForEvaluation}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wide shadow-lg shadow-emerald-500/20 transition-all hover:shadow-xl"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Gửi đánh giá</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Loading state */}
+                  {isEvaluating && (
+                    <div className="px-4 py-4 border-t border-[#E4E8F0] dark:border-[#334155] flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
+                      <span className="text-xs font-bold text-emerald-600">Đang chấm điểm bởi AI...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Empty transcript after stop */}
+                {hasStopped && !recordedTranscript.trim() && (
+                  <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium">
+                    ⚠ Không nhận được giọng nói. Hãy kiểm tra mic và thử ghi âm lại.
                   </div>
                 )}
 
@@ -232,9 +355,10 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
                     {evalError}
                   </div>
                 )}
-              </div>
+              </>
             ) : (
-              <div className="p-4 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 space-y-2.5 animate-in fade-in">
+              /* ── Evaluation result ── */
+              <div className="p-5 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 space-y-3 animate-in fade-in">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-[11px] font-bold text-[#12B76A] uppercase tracking-wider">Kết quả chấm điểm AI</span>
@@ -258,8 +382,14 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
                   </div>
                 </div>
 
+                {/* Transcript that was evaluated */}
+                <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-[#E4E8F0] dark:border-[#334155]">
+                  <span className="text-[10px] font-bold text-[#95A0B4] uppercase tracking-wider block mb-1">Văn bản đã ghi nhận</span>
+                  <p className="text-xs text-slate-700 dark:text-slate-300 italic leading-relaxed">"{recordedTranscript}"</p>
+                </div>
+
                 <button
-                  onClick={() => setEvaluation(null)}
+                  onClick={handleReset}
                   className="text-xs font-bold text-[#12B76A] hover:underline block pt-1"
                 >
                   ← Thử ghi âm lại lần nữa
@@ -268,6 +398,7 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
             )}
           </div>
 
+          {/* Bottom action bar */}
           <div className="pt-4 border-t border-[#E4E8F0] dark:border-[#334155] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
@@ -276,13 +407,6 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
                 title="Nghe phát âm câu hỏi"
               >
                 <Volume2 className="w-5 h-5 text-emerald-600" />
-              </button>
-              <button
-                onClick={() => setRecordedTranscript('')}
-                className="w-10 h-10 rounded-full bg-[#F1F4F9] dark:bg-[#273449] hover:bg-slate-200 text-slate-700 dark:text-white flex items-center justify-center transition-transform active:scale-95"
-                title="Làm mới"
-              >
-                <RotateCcw className="w-5 h-5 text-slate-500" />
               </button>
             </div>
 
@@ -308,6 +432,7 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
 
         </div>
 
+        {/* ── RIGHT: AI Coach panel ── */}
         <div className={`${showCompactVideo ? 'lg:col-span-4' : 'lg:col-span-5'} space-y-4 bg-white dark:bg-[#1E293B] p-5 sm:p-6 rounded-3xl border border-[#E4E8F0] dark:border-[#334155] shadow-sm flex flex-col justify-between min-h-[460px]`}>
           
           <div className="space-y-3">

@@ -12,7 +12,7 @@ import {
   useCourses
 } from './application';
 import { QueryProvider } from './application/providers/QueryProvider';
-import { useCoursesQuery } from './application/queries/useCoursesQuery';
+import { useCoursesQuery, useDeleteCourseMutation } from './application/queries/useCoursesQuery';
 import { getCourseDetail } from './infrastructure/api/talk2meApi';
 import { HeaderTopNav, FooterSection } from './presentation/layout';
 import { AuthModal, AuthRequirementModal } from './presentation/components/auth';
@@ -34,6 +34,7 @@ function AppContent() {
   const { user, login, logout } = useAuth();
   const { publicCourses, userCourses, categories, addCategory } = useCourses();
   const navigate = useNavigate();
+  const deleteCourseMutation = useDeleteCourseMutation();
 
   const [currentTab, setCurrentTab] = useState<string>('home');
   const [streakCount] = useState<number>(5);
@@ -60,9 +61,22 @@ function AppContent() {
   const [prefillUrl, setPrefillUrl] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Real, server-backed courses (own courses show at any creationStatus; others only
-  // when public+completed) — this is what the Courses page actually renders now.
+  // Real, server-backed courses
   const { data: myCourses = [] } = useCoursesQuery(selectedCategory, searchQuery);
+
+  const handleDeleteCourse = async (target: Course | string) => {
+    const courseId = typeof target === 'string' ? target : target.id;
+    try {
+      await deleteCourseMutation.mutateAsync(courseId);
+      if (activeCourse?.id === courseId) {
+        setActiveCourse(null);
+      }
+      setToastMessage('Đã xóa khóa học thành công.');
+    } catch (err: any) {
+      console.error('Failed to delete course:', err);
+      setToastMessage(err.message || 'Không thể xóa khóa học.');
+    }
+  };
 
   const requireAuth = (
     action: () => void,
@@ -208,6 +222,7 @@ function AppContent() {
                     setCurrentTab('home');
                   }}
                   onOpenCreateModal={handleOpenCreateModal}
+                  onDeleteCourse={handleDeleteCourse}
                 />
               ) : (
                 <div className="py-8">
@@ -242,6 +257,7 @@ function AppContent() {
                     setCurrentTab('courses');
                   }}
                   onOpenCreateModal={handleOpenCreateModal}
+                  onDeleteCourse={handleDeleteCourse}
                 />
               ) : (
                 <CoursesPage
@@ -253,6 +269,7 @@ function AppContent() {
                   onSearchChange={setSearchQuery}
                   onSelectCourse={handleSelectMyCourse}
                   onCreateCourseClick={handleOpenCreateModal}
+                  onDeleteCourse={handleDeleteCourse}
                 />
               )
             } 

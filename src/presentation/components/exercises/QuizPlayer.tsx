@@ -1,19 +1,36 @@
 import React, { useState } from 'react';
 import { Lesson, QuizQuestion } from '../../../core/entities';
 import { CheckCircle2, XCircle, ArrowRight, RotateCcw, Award } from 'lucide-react';
+import { updateProgress } from '../../../infrastructure/api/talk2meApi';
+import { CompletedModeGate } from './CompletedModeGate';
 
 interface QuizPlayerProps {
   lesson: Lesson;
+  courseId: string;
+  lessonId: string;
   onFinishQuiz: (scorePercent: number) => void;
 }
 
-export const QuizPlayer: React.FC<QuizPlayerProps> = ({ lesson, onFinishQuiz }) => {
+export const QuizPlayer: React.FC<QuizPlayerProps> = ({ lesson, courseId, lessonId, onFinishQuiz }) => {
   const questions = lesson.quizQuestions || [];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [userAnswers, setUserAnswers] = useState<number[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const savedProgress = lesson.modeProgress?.quiz;
+  if (savedProgress?.completed && !isRetrying && !showResults) {
+    return (
+      <CompletedModeGate
+        title="Bạn đã hoàn thành Quiz này"
+        scoreLabel={savedProgress.accuracy != null ? `${Math.round(savedProgress.accuracy)}%` : undefined}
+        onRetry={() => setIsRetrying(true)}
+        onContinue={() => onFinishQuiz(savedProgress.accuracy ?? 0)}
+      />
+    );
+  }
 
   if (questions.length === 0) {
     return (
@@ -52,6 +69,9 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ lesson, onFinishQuiz }) 
       });
       const percent = Math.round((correctCount / questions.length) * 100);
       setShowResults(true);
+      updateProgress(courseId, lessonId, 'quiz', true, percent).catch((err) =>
+        console.warn('Không lưu được tiến độ Quiz:', err)
+      );
       onFinishQuiz(percent);
     }
   };

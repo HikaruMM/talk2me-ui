@@ -1,19 +1,85 @@
 import React from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Lesson } from '../../../core/entities';
 import { CheckCircle2, ArrowRight, Lightbulb } from 'lucide-react';
+import { updateProgress } from '../../../infrastructure/api/talk2meApi';
+
+/* ── Custom Markdown table components for premium styling ── */
+const markdownComponents: Components = {
+  table: ({ children, ...props }) => (
+    <div className="my-6 -mx-2 sm:mx-0 overflow-x-auto rounded-2xl border border-[#E4E8F0] dark:border-[#334155] shadow-sm">
+      <table
+        {...props}
+        className="w-full text-left text-xs sm:text-sm border-collapse min-w-[640px]"
+      >
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...props }) => (
+    <thead
+      {...props}
+      className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/40 dark:to-indigo-950/40 sticky top-0 z-10"
+    >
+      {children}
+    </thead>
+  ),
+  th: ({ children, ...props }) => (
+    <th
+      {...props}
+      className="px-3 sm:px-4 py-3 font-extrabold text-[11px] sm:text-xs uppercase tracking-wider text-purple-700 dark:text-purple-300 border-b-2 border-purple-200 dark:border-purple-800/60 whitespace-nowrap"
+    >
+      {children}
+    </th>
+  ),
+  tbody: ({ children, ...props }) => (
+    <tbody {...props} className="divide-y divide-[#E4E8F0] dark:divide-[#334155]">
+      {children}
+    </tbody>
+  ),
+  tr: ({ children, ...props }) => (
+    <tr
+      {...props}
+      className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 even:bg-slate-50/50 dark:even:bg-slate-800/20"
+    >
+      {children}
+    </tr>
+  ),
+  td: ({ children, ...props }) => (
+    <td
+      {...props}
+      className="px-3 sm:px-4 py-3 text-[#1B1F2E] dark:text-[#E2E8F0] align-top leading-relaxed"
+    >
+      {children}
+    </td>
+  ),
+};
 
 interface TheoryReaderProps {
   lesson: Lesson;
+  courseId: string;
+  lessonId: string;
   onCompleteTheory: () => void;
   onStartQuiz: () => void;
 }
 
 export const TheoryReader: React.FC<TheoryReaderProps> = ({
   lesson,
+  courseId,
+  lessonId,
   onCompleteTheory,
   onStartQuiz,
 }) => {
+  const isRead = Boolean(lesson.modeProgress?.theory?.completed);
+
+  const handleMarkAsRead = () => {
+    updateProgress(courseId, lessonId, 'theory', true).catch((err) =>
+      console.warn('Không lưu được tiến độ Theory:', err)
+    );
+    onCompleteTheory();
+  };
+
   return (
     <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-6 sm:p-8 border border-[#E4E8F0] dark:border-[#334155] shadow-sm space-y-8">
       
@@ -34,7 +100,9 @@ export const TheoryReader: React.FC<TheoryReaderProps> = ({
 
       {/* Main Lesson Markdown Content */}
       <div className="prose prose-slate dark:prose-invert max-w-none text-sm sm:text-base leading-relaxed">
-        <ReactMarkdown>{lesson.theoryContent}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+          {lesson.theoryContent}
+        </ReactMarkdown>
       </div>
 
       {/* Key Takeaways Card */}
@@ -58,10 +126,14 @@ export const TheoryReader: React.FC<TheoryReaderProps> = ({
       {/* Action Footer */}
       <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#E4E8F0] dark:border-[#334155]">
         <button
-          onClick={onCompleteTheory}
-          className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#F1F4F9] dark:bg-[#273449] text-[#1B1F2E] dark:text-white font-bold text-xs uppercase tracking-wide hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
+          onClick={handleMarkAsRead}
+          className={`w-full sm:w-auto px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-wide transition-colors ${
+            isRead
+              ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+              : 'bg-[#F1F4F9] dark:bg-[#273449] text-[#1B1F2E] dark:text-white hover:bg-emerald-100 hover:text-emerald-700'
+          }`}
         >
-          ✓ Mark as Read
+          {isRead ? '✓ Đã đọc' : '✓ Mark as Read'}
         </button>
 
         <button

@@ -1,13 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DictationSegment } from '../../../core/entities';
-import { 
-  Play, RotateCcw, ArrowLeft, Mic, 
+import { DictationSegment, ModeProgress } from '../../../core/entities';
+import {
+  Play, RotateCcw, ArrowLeft, Mic,
   Square, Layers, Repeat, FastForward,
-  CheckSquare, HelpCircle, Command
+  CheckSquare, HelpCircle, Command, CheckCircle2
 } from 'lucide-react';
+import { updateProgress } from '../../../infrastructure/api/talk2meApi';
+import { CompletedModeGate } from './CompletedModeGate';
+import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
+
+const FALLBACK_VIDEO_ID = 'dQw4w9WgXcQ';
 
 interface DictationExerciseProps {
-  youtubeUrl?: string;
+  courseId: string;
+  lessonId: string;
+  progress?: ModeProgress;
+  youtubeVideoId?: string;
   videoTitle?: string;
   segments: DictationSegment[];
   onComplete?: () => void;
@@ -15,7 +23,10 @@ interface DictationExerciseProps {
 }
 
 export const DictationExercise: React.FC<DictationExerciseProps> = ({
-  youtubeUrl = 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+  courseId,
+  lessonId,
+  progress,
+  youtubeVideoId,
   videoTitle = 'A Digital Marketing (DMS) Method With Communication',
   segments = [],
   onComplete,
@@ -26,11 +37,12 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
   const [hintsRevealed, setHintsRevealed] = useState<Record<number, number>>({});
   const [submittedStatuses, setSubmittedStatuses] = useState<Record<number, boolean>>({});
   const [playbackSpeed] = useState<0.5 | 0.75 | 1>(1);
-  const [level, setLevel] = useState<'steady' | 'natural' | 'fluent'>('natural');
   const [showCaptions, setShowCaptions] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { iframeRef, embedUrl, playSegment } = useYoutubeSegmentPlayer(youtubeVideoId || FALLBACK_VIDEO_ID);
 
   const currentSegment = segments[activeSegmentIndex] || {
     id: '1',
@@ -45,16 +57,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
     }
   }, [activeSegmentIndex]);
 
-  const speakSegment = (textToSpeak?: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const text = textToSpeak || currentSegment.targetText;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = playbackSpeed;
-      utterance.lang = 'en-US';
-      window.speechSynthesis.speak(utterance);
-    }
-  };
+  const playCurrentSegment = () => playSegment(currentSegment.startTime, currentSegment.endTime);
 
   const getMaskedSentence = (text: string, revealedCount: number) => {
     const words = text.split(' ');
@@ -96,10 +99,29 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
     });
   };
 
+  const computeOverallAccuracy = (): number | undefined => {
+    let totalWords = 0;
+    let correctWords = 0;
+    segments.forEach((seg, idx) => {
+      const typed = (typedTexts[idx] || '').trim().toLowerCase();
+      const typedWords = typed.split(/\s+/);
+      seg.targetText.split(' ').forEach((targetW, i) => {
+        totalWords++;
+        const cleanTarget = targetW.replace(/[^\w]/g, '').toLowerCase();
+        const cleanTyped = (typedWords[i] || '').replace(/[^\w]/g, '').toLowerCase();
+        if (cleanTyped && cleanTyped === cleanTarget) correctWords++;
+      });
+    });
+    return totalWords > 0 ? Math.round((correctWords / totalWords) * 100) : undefined;
+  };
+
   const handleNextSegment = () => {
     if (activeSegmentIndex < segments.length - 1) {
       setActiveSegmentIndex((prev) => prev + 1);
     } else {
+      updateProgress(courseId, lessonId, 'dictation', true, computeOverallAccuracy()).catch((err) =>
+        console.warn('Không lưu được tiến độ Dictation:', err)
+      );
       if (onComplete) onComplete();
       if (onFinishDictation) onFinishDictation();
     }
@@ -111,20 +133,27 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
     }
   };
 
+  const evalResult = submittedStatuses[activeSegmentIndex] ? evaluateWords() : [];
+  const isAllCorrect = submittedStatuses[activeSegmentIndex] && evalResult.length > 0 && evalResult.every((r) => r.status === 'correct');
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Tab') {
         e.preventDefault();
-        speakSegment();
+        playCurrentSegment();
       } else if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault();
         handleNextSegment();
       } else if (e.key === 'Enter' && !e.shiftKey && e.target === textareaRef.current) {
         e.preventDefault();
-        setSubmittedStatuses((prev) => ({ ...prev, [activeSegmentIndex]: true }));
+        if (isAllCorrect) {
+          handleNextSegment();
+        } else if (typedTexts[activeSegmentIndex]?.trim()) {
+          setSubmittedStatuses((prev) => ({ ...prev, [activeSegmentIndex]: true }));
+        }
       } else if (e.key === '~' || e.key === '`') {
         e.preventDefault();
-        speakSegment();
+        playCurrentSegment();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         handleRevealWordHint();
@@ -136,22 +165,30 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSegmentIndex, currentSegment, typedTexts]);
+  }, [activeSegmentIndex, currentSegment, typedTexts, isAllCorrect]);
 
-  const completedCount = Object.keys(submittedStatuses).filter(k => submittedStatuses[Number(k)]).length;
-  const progressPercent = Math.round((completedCount / segments.length) * 100);
+  const completedCount = Object.keys(submittedStatuses).filter(k => {
+    const idx = Number(k);
+    if (!submittedStatuses[idx]) return false;
+    const typed = (typedTexts[idx] || '').trim().toLowerCase();
+    const seg = segments[idx];
+    if (!seg) return false;
+    const cleanTarget = seg.targetText.replace(/[^\w]/g, '').toLowerCase();
+    const cleanTyped = typed.replace(/[^\w]/g, '').toLowerCase();
+    return cleanTyped === cleanTarget;
+  }).length;
+  const progressPercent = segments.length > 0 ? Math.round((completedCount / segments.length) * 100) : 0;
 
-  const getEmbedUrl = (url?: string) => {
-    if (!url) return 'https://www.youtube.com/embed/dQw4w9WgXcQ';
-    if (url.includes('embed/')) return url;
-    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-    if (match && match[1]) {
-      return `https://www.youtube.com/embed/${match[1]}?autoplay=0&enablejsapi=1`;
-    }
-    return 'https://www.youtube.com/embed/dQw4w9WgXcQ';
-  };
-
-  const evalResult = submittedStatuses[activeSegmentIndex] ? evaluateWords() : [];
+  if (progress?.completed && !isRetrying) {
+    return (
+      <CompletedModeGate
+        title="Bạn đã hoàn thành Dictation này"
+        scoreLabel={progress.accuracy != null ? `${Math.round(progress.accuracy)}%` : undefined}
+        onRetry={() => setIsRetrying(true)}
+        onContinue={() => (onComplete ? onComplete() : onFinishDictation?.())}
+      />
+    );
+  }
 
   return (
     <div className="w-full space-y-6">
@@ -186,7 +223,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
                   key={idx}
                   onClick={() => {
                     setActiveSegmentIndex(idx);
-                    speakSegment(seg.targetText);
+                    playSegment(seg.startTime, seg.endTime);
                   }}
                   className={`p-3 rounded-2xl cursor-pointer transition-all space-y-1 ${
                     isActive
@@ -215,56 +252,6 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
             })}
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E4E8F0] dark:border-[#334155] space-y-2.5">
-            <p className="text-xs font-bold text-[#1B1F2E] dark:text-white">
-              Sentence too long? Pick your level:
-            </p>
-
-            <div className="space-y-1.5 text-xs">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="level"
-                  checked={level === 'steady'}
-                  onChange={() => setLevel('steady')}
-                  className="mt-0.5 text-emerald-500 focus:ring-emerald-500"
-                />
-                <div>
-                  <span className="font-bold text-[#1B1F2E] dark:text-white">Steady</span>
-                  <p className="text-[10px] text-[#5A6478] dark:text-[#94A3B8]">short phrases, easy to follow</p>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="level"
-                  checked={level === 'natural'}
-                  onChange={() => setLevel('natural')}
-                  className="mt-0.5 text-emerald-500 focus:ring-emerald-500"
-                />
-                <div>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">✓ Natural</span>
-                  <p className="text-[10px] text-[#5A6478] dark:text-[#94A3B8]">natural, conversational pauses</p>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="level"
-                  checked={level === 'fluent'}
-                  onChange={() => setLevel('fluent')}
-                  className="mt-0.5 text-emerald-500 focus:ring-emerald-500"
-                />
-                <div>
-                  <span className="font-bold text-[#1B1F2E] dark:text-white">Fluent</span>
-                  <p className="text-[10px] text-[#5A6478] dark:text-[#94A3B8]">the whole sentence in one breath</p>
-                </div>
-              </label>
-            </div>
-          </div>
-
           <div className="space-y-1 pt-1">
             <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
               <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${progressPercent}%` }} />
@@ -280,7 +267,8 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
         <div className="lg:col-span-4 space-y-4">
           <div className="aspect-video w-full rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-lg relative">
             <iframe
-              src={getEmbedUrl(youtubeUrl)}
+              ref={iframeRef}
+              src={embedUrl}
               title="YouTube Video Player"
               className="w-full h-full border-0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -297,7 +285,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
             </p>
 
             <div className="pt-2 flex items-center justify-between text-xs text-[#5A6478] dark:text-[#94A3B8] border-t border-[#E4E8F0] dark:border-[#334155]">
-              <button onClick={() => speakSegment()} className="flex items-center gap-1 hover:text-emerald-500 font-bold">
+              <button onClick={playCurrentSegment} className="flex items-center gap-1 hover:text-emerald-500 font-bold">
                 <Repeat className="w-3.5 h-3.5" />
                 <span>Loop Line</span>
               </button>
@@ -328,7 +316,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
             </button>
 
             <button
-              onClick={() => speakSegment()}
+              onClick={playCurrentSegment}
               className="p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] hover:bg-slate-100 dark:hover:bg-slate-800"
               title="Replay Audio (Tab)"
             >
@@ -336,7 +324,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
             </button>
 
             <button
-              onClick={() => speakSegment()}
+              onClick={playCurrentSegment}
               className="p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] hover:bg-slate-100 dark:hover:bg-slate-800"
               title="Play / Pause (~)"
             >
@@ -357,7 +345,13 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
               ref={textareaRef}
               rows={4}
               value={typedTexts[activeSegmentIndex] || ''}
-              onChange={(e) => setTypedTexts(prev => ({ ...prev, [activeSegmentIndex]: e.target.value }))}
+              onChange={(e) => {
+                setTypedTexts((prev) => ({ ...prev, [activeSegmentIndex]: e.target.value }));
+                // Automatically hide error breakdown when user resumes typing
+                if (submittedStatuses[activeSegmentIndex]) {
+                  setSubmittedStatuses((prev) => ({ ...prev, [activeSegmentIndex]: false }));
+                }
+              }}
               placeholder="Enter the sentence you hear..."
               className="w-full p-2 bg-transparent text-sm font-medium text-[#1B1F2E] dark:text-white focus:outline-none placeholder-slate-400 resize-none"
             />
@@ -378,15 +372,25 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
 
           <button
             onClick={() => {
-              if (!submittedStatuses[activeSegmentIndex] && typedTexts[activeSegmentIndex]?.trim()) {
-                setSubmittedStatuses((prev) => ({ ...prev, [activeSegmentIndex]: true }));
-              } else {
+              if (isAllCorrect) {
                 handleNextSegment();
+              } else if (typedTexts[activeSegmentIndex]?.trim()) {
+                setSubmittedStatuses((prev) => ({ ...prev, [activeSegmentIndex]: true }));
               }
             }}
-            className="w-full py-3.5 rounded-2xl bg-[#12B76A] hover:bg-[#0e9f5a] text-white font-extrabold text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-transform active:scale-95"
+            className={`w-full py-3.5 rounded-2xl font-extrabold text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 ${
+              isAllCorrect
+                ? 'bg-[#12B76A] hover:bg-[#0e9f5a] text-white shadow-emerald-500/20'
+                : 'bg-[#2E68FF] hover:bg-[#1E52DB] text-white shadow-blue-500/20'
+            }`}
           >
-            <span>{!submittedStatuses[activeSegmentIndex] && typedTexts[activeSegmentIndex]?.trim() ? 'Check Sentence' : 'Next →'}</span>
+            <span>
+              {isAllCorrect
+                ? 'Next Segment →'
+                : submittedStatuses[activeSegmentIndex]
+                ? 'Kiểm tra lại ↺'
+                : 'Check Sentence'}
+            </span>
           </button>
 
           <div className="p-3 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] text-center font-mono font-bold text-xs text-slate-600 dark:text-slate-300">
@@ -394,24 +398,45 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
           </div>
 
           {submittedStatuses[activeSegmentIndex] && (
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] space-y-2">
-              <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Step-by-Step Word Accuracy:</p>
-              <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
-                {evalResult.map((res, wIdx) => (
-                  <span
-                    key={wIdx}
-                    className={`px-2 py-0.5 rounded-md ${
-                      res.status === 'correct'
-                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
-                        : res.status === 'incorrect'
-                        ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 line-through'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {res.word}
-                  </span>
-                ))}
-              </div>
+            <div className={`p-4 rounded-2xl border space-y-2 animate-in fade-in duration-200 ${
+              isAllCorrect
+                ? 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                : 'bg-white dark:bg-[#1E293B] border-[#E4E8F0] dark:border-[#334155]'
+            }`}>
+              {isAllCorrect ? (
+                <div className="flex items-center gap-2 font-extrabold text-sm text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <span>🎉 Đúng hoàn toàn! Bạn đã chép chính xác câu này.</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      Kết quả kiểm tra từ (Gõ tiếp để sửa lỗi):
+                    </p>
+                    <span className="text-[11px] font-bold text-red-500">
+                      {evalResult.filter(r => r.status === 'correct').length}/{evalResult.length} từ đúng
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 text-xs font-semibold pt-1">
+                    {evalResult.map((res, wIdx) => (
+                      <span
+                        key={wIdx}
+                        className={`px-2 py-0.5 rounded-md ${
+                          res.status === 'correct'
+                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            : res.status === 'incorrect'
+                            ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 line-through'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
+                        }`}
+                        title={res.status === 'incorrect' ? `Từ đúng: ${res.word}` : undefined}
+                      >
+                        {res.word}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

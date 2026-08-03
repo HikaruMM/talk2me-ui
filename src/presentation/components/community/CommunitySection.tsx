@@ -49,7 +49,7 @@ import {
   Layers,
   GraduationCap
 } from 'lucide-react';
-import { generateCompletion } from '../../../infrastructure/api/openrouter';
+import { generateCompletion } from '../../../infrastructure/api/gemini';
 import { INITIAL_COURSES } from '../../../infrastructure/data/mockCourses';
 import { MOCK_FLASHCARDS } from '../../../infrastructure/data/mockFlashcards';
 
@@ -939,7 +939,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
     }, 2200);
   };
 
-  // Generate new AI Topic Cards using OpenRouter
+  // Generate new AI Topic Cards using Gemini
   const handleGenerateNewAiTopic = async () => {
     setIsGeneratingAiTopic(true);
     try {

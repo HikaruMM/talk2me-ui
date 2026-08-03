@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { WritingPrompt, WritingEvaluation } from '../../../core/entities';
+import { WritingPrompt, WritingEvaluation, ModeProgress } from '../../../core/entities';
 import { evaluateWriting } from '../../../infrastructure/api/talk2meApi';
-import { Sparkles, AlertTriangle, ArrowRight, Loader2, BookOpen, RotateCcw, Award, FileText } from 'lucide-react';
+import { Sparkles, AlertTriangle, ArrowRight, Loader2, BookOpen, RotateCcw, Award, FileText, Lightbulb } from 'lucide-react';
+import { CompletedModeGate } from './CompletedModeGate';
 
 interface WritingExerciseProps {
   courseId: string;
   lessonId: string;
   prompt?: WritingPrompt;
+  progress?: ModeProgress;
   onFinishWriting: () => void;
 }
 
@@ -14,12 +16,26 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
   courseId,
   lessonId,
   prompt,
+  progress,
   onFinishWriting,
 }) => {
   const [submissionText, setSubmissionText] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluation, setEvaluation] = useState<WritingEvaluation | null>(null);
   const [evalError, setEvalError] = useState('');
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+
+  if (progress?.completed && !isRetrying && !evaluation) {
+    return (
+      <CompletedModeGate
+        title="Bạn đã hoàn thành Writing này"
+        scoreLabel={progress.accuracy != null ? `Band ${progress.accuracy}` : undefined}
+        onRetry={() => setIsRetrying(true)}
+        onContinue={onFinishWriting}
+      />
+    );
+  }
 
   const wordCount = submissionText.trim() ? submissionText.trim().split(/\s+/).length : 0;
 
@@ -82,6 +98,22 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
         <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1]">
           Suggested target: <span className="font-bold text-[#F79009]">{prompt?.suggestedWordCount || 120} words</span>
         </p>
+
+        {prompt?.hintText && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setShowHint((v) => !v)}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#F79009] hover:underline"
+            >
+              <Lightbulb className="w-3 h-3" />
+              <span>{showHint ? 'Ẩn gợi ý' : 'Xem gợi ý'}</span>
+            </button>
+            {showHint && (
+              <p className="text-[11px] text-[#5A6478] dark:text-[#94A3B8] mt-1">{prompt.hintText}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Essay Editor Form */}

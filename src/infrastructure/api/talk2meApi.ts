@@ -1,4 +1,4 @@
-import { getStoredConfig } from './openrouter';
+import { getStoredConfig } from './gemini';
 import type { Course, WritingEvaluation, SpeakingEvaluation } from '../../core/entities';
 
 const API_BASE = 'http://localhost:8000/api/v1';
@@ -17,7 +17,7 @@ interface LLMConfigPayload {
 
 /**
  * Builds the llm_config payload sent on every generation/grading request from the
- * user's client-side OpenRouter settings.
+ * user's client-side Gemini settings.
  */
 export function buildLlmConfig(): LLMConfigPayload {
   const config = getStoredConfig();
@@ -95,6 +95,13 @@ export function getCourses(category?: string, query?: string): Promise<Course[]>
 export function getCourseDetail(courseId: string): Promise<Course> {
   return apiFetch(`/courses/${courseId}`);
 }
+
+export function deleteCourse(courseId: string): Promise<{ ok: boolean; message?: string }> {
+  return apiFetch(`/courses/${courseId}`, {
+    method: 'DELETE',
+  });
+}
+
 
 export function evaluateWriting(
   courseId: string,

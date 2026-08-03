@@ -12,6 +12,7 @@ interface CoursesPageProps {
   onSearchChange: (query: string) => void;
   onSelectCourse: (course: Course) => void;
   onCreateCourseClick: () => void;
+  onDeleteCourse?: (course: Course) => void;
 }
 
 export const CoursesPage: React.FC<CoursesPageProps> = ({
@@ -23,6 +24,7 @@ export const CoursesPage: React.FC<CoursesPageProps> = ({
   onSearchChange,
   onSelectCourse,
   onCreateCourseClick,
+  onDeleteCourse,
 }) => {
   const [visibleLimit, setVisibleLimit] = useState(6);
 
@@ -128,6 +130,7 @@ export const CoursesPage: React.FC<CoursesPageProps> = ({
                 key={course.id}
                 course={course}
                 onSelectCourse={() => onSelectCourse(course)}
+                onDeleteCourse={onDeleteCourse}
               />
             ))}
           </div>

@@ -1,10 +1,11 @@
-import { 
-  LearningModeType, 
-  QuizQuestion, 
-  DictationSegment, 
-  ShadowingLine, 
-  WritingPrompt, 
-  SpeakingPrompt 
+import {
+  LearningModeType,
+  QuizQuestion,
+  DictationSegment,
+  ShadowingLine,
+  WritingPrompt,
+  SpeakingPrompt,
+  ModeProgress
 } from './exercise';
 
 export interface Category {
@@ -33,6 +34,7 @@ export interface Lesson {
   speakingPrompt?: SpeakingPrompt;
   availableModes: LearningModeType[];
   completedModes: LearningModeType[];
+  modeProgress?: Partial<Record<LearningModeType, ModeProgress>>;
 }
 
 export interface Course {
@@ -58,5 +60,7 @@ export interface Course {
   generationError?: string | null;
   progressPercent: number;
   lessons: Lesson[];
+  userId?: string;
   createdAt: string;
 }
+

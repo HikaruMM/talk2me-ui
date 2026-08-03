@@ -8,23 +8,51 @@ import {
   WritingExercise, 
   SpeakingExercise 
 } from '../components/exercises';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft, Sparkles, Trash2 } from 'lucide-react';
+import { useDeleteCourseMutation } from '../../application/queries/useCoursesQuery';
+import { useAuth } from '../../application/hooks/useAuth';
 
 interface CourseDetailPageProps {
   course: Course;
   onBack: () => void;
   onOpenCreateModal?: (url?: string) => void;
+  onDeleteCourse?: (courseId: string) => void;
 }
 
 export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
   course,
   onBack,
   onOpenCreateModal,
+  onDeleteCourse,
 }) => {
+  const { user } = useAuth();
   const [activeLessonIndex, setActiveLessonIndex] = useState(0);
   const [activeMode, setActiveMode] = useState<'theory' | 'quiz' | 'dictation' | 'shadowing' | 'writing' | 'speaking'>('theory');
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const deleteMutation = useDeleteCourseMutation();
+
+  const canDelete = Boolean(user && (onDeleteCourse || (course.userId && course.userId === user.id)));
+
+  const handleDeleteCourse = async () => {
+    if (!showConfirmDelete) {
+      setShowConfirmDelete(true);
+      return;
+    }
+    try {
+      if (onDeleteCourse) {
+        onDeleteCourse(course.id);
+      } else {
+        await deleteMutation.mutateAsync(course.id);
+      }
+      onBack();
+    } catch (err) {
+      console.error('Delete course failed:', err);
+    }
+  };
 
   const currentLesson = course.lessons[activeLessonIndex] || course.lessons[0];
+
+  const isModeDone = (mode: string) => Boolean(currentLesson?.completedModes?.includes(mode as any));
 
   return (
     <div className="max-w-[1680px] w-full mx-auto px-4 sm:px-6 lg:px-10 py-6 space-y-4">
@@ -57,6 +85,22 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
               <span>Re-generate with AI</span>
             </button>
           )}
+
+          {canDelete && (
+            <button
+              onClick={handleDeleteCourse}
+              onMouseLeave={() => setShowConfirmDelete(false)}
+              className={`px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs ${
+                showConfirmDelete
+                  ? 'bg-red-600 text-white animate-pulse'
+                  : 'bg-white dark:bg-[#1E293B] border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
+              }`}
+              title="Xóa khóa học này"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{showConfirmDelete ? 'Xác nhận xóa?' : 'Xóa khóa học'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -71,6 +115,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
           }`}
         >
           <span>📖 Theory</span>
+          {isModeDone('theory') && <span className="text-emerald-400">✓</span>}
         </button>
 
         <button
@@ -82,6 +127,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
           }`}
         >
           <span>✓ Quiz ({currentLesson?.quizQuestions?.length || 0})</span>
+          {isModeDone('quiz') && <span className="text-emerald-400">✓</span>}
         </button>
 
         <button
@@ -93,6 +139,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
           }`}
         >
           <span>🎧 Dictation</span>
+          {isModeDone('dictation') && <span className="text-emerald-400">✓</span>}
         </button>
 
         <button
@@ -104,6 +151,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
           }`}
         >
           <span>🔁 Shadowing</span>
+          {isModeDone('shadowing') && <span className="text-emerald-400">✓</span>}
         </button>
 
         <button
@@ -115,6 +163,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
           }`}
         >
           <span>✎ AI Writing</span>
+          {isModeDone('writing') && <span className="text-emerald-400">✓</span>}
         </button>
 
         <button
@@ -126,14 +175,18 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
           }`}
         >
           <span>🎙 AI Speaking</span>
+          {isModeDone('speaking') && <span className="text-emerald-400">✓</span>}
         </button>
       </div>
 
       {/* Mode Content Views */}
       {activeMode === 'dictation' ? (
         <DictationExercise
+          courseId={course.id}
+          lessonId={currentLesson?.id}
+          progress={currentLesson?.modeProgress?.dictation}
           segments={currentLesson?.dictationSegments || []}
-          youtubeUrl={course.youtubeUrl}
+          youtubeVideoId={course.youtubeVideoId}
           videoTitle={course.title}
           onFinishDictation={() => setActiveMode('shadowing')}
         />
@@ -141,6 +194,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         <SpeakingExercise
           courseId={course.id}
           lessonId={currentLesson?.id}
+          progress={currentLesson?.modeProgress?.speaking}
           prompt={currentLesson?.speakingPrompt}
           youtubeVideoId={course.youtubeVideoId}
           startSeconds={currentLesson?.startSeconds}
@@ -148,6 +202,15 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             alert('🎉 Congratulations! You completed all 6 learning modes for this lesson!');
             setActiveMode('theory');
           }}
+        />
+      ) : activeMode === 'shadowing' ? (
+        <ShadowingExercise
+          courseId={course.id}
+          lessonId={currentLesson?.id}
+          progress={currentLesson?.modeProgress?.shadowing}
+          youtubeVideoId={course.youtubeVideoId}
+          lines={currentLesson?.shadowingLines || []}
+          onFinishShadowing={() => setActiveMode('writing')}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -207,6 +270,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             {activeMode === 'theory' && currentLesson && (
               <TheoryReader
                 lesson={currentLesson}
+                courseId={course.id}
+                lessonId={currentLesson.id}
                 onCompleteTheory={() => setActiveMode('quiz')}
                 onStartQuiz={() => setActiveMode('quiz')}
               />
@@ -215,14 +280,9 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             {activeMode === 'quiz' && currentLesson && (
               <QuizPlayer
                 lesson={currentLesson}
+                courseId={course.id}
+                lessonId={currentLesson.id}
                 onFinishQuiz={() => setActiveMode('dictation')}
-              />
-            )}
-
-            {activeMode === 'shadowing' && (
-              <ShadowingExercise
-                lines={currentLesson?.shadowingLines || []}
-                onFinishShadowing={() => setActiveMode('writing')}
               />
             )}
 
@@ -230,6 +290,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
               <WritingExercise
                 courseId={course.id}
                 lessonId={currentLesson?.id}
+                progress={currentLesson?.modeProgress?.writing}
                 prompt={currentLesson?.writingPrompt}
                 onFinishWriting={() => setActiveMode('speaking')}
               />
