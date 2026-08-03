@@ -27,7 +27,10 @@ import {
   saveStoredConfig,
   testOpenRouterKey,
   generateCompletion,
-  fetchLiveModels
+  fetchLiveModels,
+  getModelCooldownSeconds,
+  resolveModelSlots,
+  pickFreeModelId
 } from '../../infrastructure/api/openrouter';
 
 interface SettingsPageProps {
@@ -51,7 +54,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   const [testPrompt, setTestPrompt] = useState<string>(
     'Hãy cho tôi 3 lý do vì sao phương pháp Lặp lại ngắt quãng (SRS) giúp ghi nhớ từ vựng tiếng Anh tốt nhất.'
   );
-  const [testSelectedModel, setTestSelectedModel] = useState<string>('openai/gpt-oss-20b:free');
+  const [testSelectedModel, setTestSelectedModel] = useState<string>('');
   const [testResponse, setTestResponse] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [playgroundError, setPlaygroundError] = useState<string>('');
@@ -62,9 +65,35 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
 
   useEffect(() => {
     fetchLiveModels()
-      .then(setLiveModels)
+      .then((models) => {
+        setLiveModels(models);
+
+        // Self-heal: any slot that's empty (never set) or points at a model that's since
+        // died gets replaced with something that's actually live right now — no hardcoded
+        // id is ever trusted blindly.
+        const healedModels = resolveModelSlots(config.models, models);
+        if (JSON.stringify(healedModels) !== JSON.stringify(config.models)) {
+          const healedConfig = { ...config, models: healedModels };
+          setConfig(healedConfig);
+          saveStoredConfig(healedConfig);
+        }
+
+        setTestSelectedModel((prev) => prev || pickFreeModelId(models, 0));
+      })
       .catch((err) => console.warn('Không lấy được danh sách model live từ OpenRouter API:', err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // getModelCooldownSeconds() reads a plain module-level Map, not React state — without
+  // this tick, the "[Bận - Cooldown Xs]" labels and the Playground banner below would only
+  // ever show whatever number was true at the last unrelated re-render, never counting down.
+  const [, forceCooldownTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => forceCooldownTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const playgroundCooldownSecs = getModelCooldownSeconds(testSelectedModel);
 
   useEffect(() => {
     setApiKeyInput(config.apiKey);
@@ -93,10 +122,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
     setIsTestingKey(false);
 
     if (result.success) {
+      const detailsMsg = result.data?.label ? `Tên Key: ${result.data.label}` : undefined;
       setTestResult({
         success: true,
         message: result.message,
-        details: result.data?.label ? `Tên Key: ${result.data.label}` : undefined,
+        details: detailsMsg,
       });
     } else {
       setTestResult({
@@ -135,34 +165,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
+  // Presets never reference a specific model id — each one just picks deterministically
+  // from whatever's LIVE right now, using a different rotation offset per preset so "Free
+  // Cân Bằng"/"Free Tốc Độ Fast"/"Free Suy Luận Sâu" tend to land on different models
+  // without any of them being able to go stale.
   const applyPreset = (presetType: 'free' | 'speed' | 'pro') => {
-    let updatedModels = { ...config.models };
-
-    if (presetType === 'free') {
-      updatedModels = {
-        defaultModel: 'openai/gpt-oss-20b:free',
-        courseGenerator: 'openai/gpt-oss-20b:free',
-        flashcardGenerator: 'nvidia/nemotron-3-nano-30b-a3b:free',
-        writingGrader: 'nvidia/nemotron-3-super-120b-a12b:free',
-        quizGenerator: 'google/gemma-4-31b-it:free',
-      };
-    } else if (presetType === 'speed') {
-      updatedModels = {
-        defaultModel: 'openai/gpt-4o-mini',
-        courseGenerator: 'openai/gpt-4o-mini',
-        flashcardGenerator: 'openai/gpt-4o-mini',
-        writingGrader: 'deepseek/deepseek-chat',
-        quizGenerator: 'openai/gpt-4o-mini',
-      };
-    } else if (presetType === 'pro') {
-      updatedModels = {
-        defaultModel: 'anthropic/claude-sonnet-5',
-        courseGenerator: 'anthropic/claude-sonnet-5',
-        flashcardGenerator: 'deepseek/deepseek-chat',
-        writingGrader: 'deepseek/deepseek-r1',
-        quizGenerator: 'openai/gpt-4o-mini',
-      };
+    if (availableModels.length === 0) {
+      setPlaygroundError('Danh sách model chưa tải xong, vui lòng thử lại sau giây lát.');
+      return;
     }
+
+    const baseSeed = presetType === 'free' ? 0 : presetType === 'speed' ? 5 : 10;
+    const updatedModels = {
+      defaultModel: pickFreeModelId(availableModels, baseSeed),
+      courseGenerator: pickFreeModelId(availableModels, baseSeed),
+      flashcardGenerator: pickFreeModelId(availableModels, baseSeed + 1),
+      writingGrader: pickFreeModelId(availableModels, baseSeed + 2),
+      quizGenerator: pickFreeModelId(availableModels, baseSeed),
+    };
 
     const newConfig = { ...config, models: updatedModels };
     setConfig(newConfig);
@@ -177,7 +197,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
     setTestResponse('');
 
     try {
-      const result = await generateCompletion(testPrompt, testSelectedModel);
+      const result = await generateCompletion(testPrompt, testSelectedModel, undefined, liveModels);
       setTestResponse(result);
     } catch (err: any) {
       setPlaygroundError(err.message || 'Xảy ra lỗi khi gửi yêu cầu đến OpenRouter.');
@@ -205,13 +225,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
 
         <div className="relative z-10 space-y-4">
           <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-            <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-              Chiến Lược BYOK (Bring Your Own Key)
-            </span>
             <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              100% Client-Side LocalStorage
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              100% Free Model Policy (Chi phí 0Đ)
+            </span>
+            <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+              Tự Động Fallback Khi Nghẽn Tải
             </span>
             <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30">
               Chi phí vận hành 0đ
@@ -223,7 +243,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-3xl">
-            Tận dụng sức mạnh của <strong>OpenRouter API</strong> với hàng trăm mô hình AI hàng đầu thế giới (Google Gemini, DeepSeek R1, Llama 3.3, Claude 3.5 Sonnet, GPT-4o). Bạn có thể dùng <strong>chế độ Miễn Phí mặc định</strong> hoặc dán <strong>1 API Key duy nhất</strong> để cá nhân hóa tốc độ & model cho từng tính năng.
+            Tận dụng sức mạnh của <strong>OpenRouter API</strong> với hệ thống mô hình AI Miễn Phí (Google Gemma 4, DeepSeek R1, Llama 3.3 Free, Mistral 7B). Ứng dụng tích hợp sẵn <strong>cơ chế tự động chuyển model dự phòng</strong> giúp bạn luôn sẵn sàng học tập mà không tốn phí.
           </p>
         </div>
       </div>
@@ -261,16 +281,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
                 🟢
               </div>
               <h3 className="font-extrabold text-base text-[#1B1F2E] dark:text-white">
-                Chế độ Miễn Phí Mặc Định
+                Chế độ Miễn Phí Mặc Định (0Đ)
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                Tích hợp sẵn các Model AI miễn phí 100% trên OpenRouter (Gemini 2.0 Flash Free, DeepSeek R1 Free, Llama 3.3 Free).
+                Tích hợp sẵn các Model AI miễn phí 100% trên OpenRouter (Gemma 4 Free, DeepSeek R1 Free, Llama 3.3 Free).
               </p>
             </div>
 
             <div className="pt-2 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />
-              Không cần API Key • Dùng ngay không tốn phí
+              Không cần API Key • Tự động Fallback khi nghẽn
             </div>
           </div>
 
@@ -293,16 +313,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
                 ⚡
               </div>
               <h3 className="font-extrabold text-base text-[#1B1F2E] dark:text-white">
-                Chế độ BYOK (OpenRouter Key Cá Nhân)
+                Chế độ BYOK (Key OpenRouter Cá Nhân)
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                Nhập 1 API Key OpenRouter duy nhất. Mở khóa Claude 3.5 Sonnet, GPT-4o, tốc độ xử lý nhanh gấp nhiều lần và không lo tắc nghẽn lượt dùng.
+                Nhập 1 API Key OpenRouter duy nhất (Free Tier hoặc Nạp $). Tăng giới hạn lượt gọi và ưu tiên đường truyền nhanh hơn.
               </p>
             </div>
 
             <div className="pt-2 text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
               <Zap className="w-4 h-4" />
-              Truy cập 200+ Models AI • Không giới hạn Rate Limit
+              Tăng Quota • Giảm tỉ lệ gặp lỗi 429
             </div>
           </div>
 
@@ -325,7 +345,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Nhập duy nhất 1 API Key từ OpenRouter.ai để cấp quyền cho toàn bộ các tính năng AI trong ứng dụng.
+            Nhập 1 API Key từ OpenRouter.ai để cấp quyền cho các tính năng AI trong ứng dụng.
           </p>
         </div>
 
@@ -420,38 +440,49 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
             <div>
               <h2 className="text-lg font-extrabold text-[#1B1F2E] dark:text-white flex items-center gap-2">
                 <Bot className="w-5 h-5 text-[#2E68FF]" />
-                <span>3. Phân Mạch Model AI Cho Từng Tính Năng</span>
+                <span>3. Phân Mạch Model AI Cho Từng Tính Năng (100% Free)</span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Tùy chỉnh mô hình AI tối ưu nhất cho từng tác vụ riêng biệt trong khóa học.
+                Tùy chỉnh mô hình AI miễn phí tối ưu nhất cho từng tác vụ trong khóa học.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-400 hidden sm:inline">Cấu hình nhanh:</span>
+              <span className="text-[11px] font-bold text-slate-400 hidden sm:inline">Cấu hình 0Đ:</span>
               <button
                 type="button"
                 onClick={() => applyPreset('free')}
                 className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 text-xs font-bold transition-colors"
               >
-                🟢 100% Free
+                🟢 Free Cân Bằng
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('speed')}
                 className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors"
               >
-                🚀 Tốc Độ Fast
+                ⚡ Free Tốc Độ Fast
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('pro')}
                 className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 text-purple-600 dark:text-purple-400 text-xs font-bold transition-colors"
               >
-                ⚡ Pro Đỉnh Cao
+                🧠 Free Suy Luận Sâu
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Dynamic Fallback Notice */}
+        <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs space-y-1 text-slate-700 dark:text-slate-300">
+          <div className="flex items-center gap-2 font-bold text-blue-700 dark:text-blue-300">
+            <RefreshCw className="w-4 h-4 text-blue-500" />
+            <span>Cơ Chế Tự Động Chuyển Model Dự Phòng Miễn Phí (Zero-Cost Auto-Fallback)</span>
+          </div>
+          <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+            Nếu Model chính bạn chọn ở bên dưới gặp sự cố quá tải (HTTP 429), OpenRouter sẽ tự động nhảy ngay sang các Model Miễn Phí khả dụng khác mà không gián đoạn trải nghiệm của bạn.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -473,11 +504,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               }}
               className="w-full p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF]"
             >
-              {availableModels.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.provider}) {m.isFree ? '• [Free]' : '• [BYOK]'}
-                </option>
-              ))}
+              {availableModels.map((m) => {
+                const cooldown = getModelCooldownSeconds(m.id);
+                return (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.provider}) {cooldown > 0 ? `[Bận - Cooldown ${cooldown}s]` : '• [Miễn phí]'}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -499,11 +533,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               }}
               className="w-full p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF]"
             >
-              {availableModels.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.provider}) {m.isFree ? '• [Free]' : '• [BYOK]'}
-                </option>
-              ))}
+              {availableModels.map((m) => {
+                const cooldown = getModelCooldownSeconds(m.id);
+                return (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.provider}) {cooldown > 0 ? `[Bận - Cooldown ${cooldown}s]` : '• [Miễn phí]'}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -525,11 +562,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               }}
               className="w-full p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF]"
             >
-              {availableModels.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.provider}) {m.isFree ? '• [Free]' : '• [BYOK]'}
-                </option>
-              ))}
+              {availableModels.map((m) => {
+                const cooldown = getModelCooldownSeconds(m.id);
+                return (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.provider}) {cooldown > 0 ? `[Bận - Cooldown ${cooldown}s]` : '• [Miễn phí]'}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -551,11 +591,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               }}
               className="w-full p-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF]"
             >
-              {availableModels.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.provider}) {m.isFree ? '• [Free]' : '• [BYOK]'}
-                </option>
-              ))}
+              {availableModels.map((m) => {
+                const cooldown = getModelCooldownSeconds(m.id);
+                return (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.provider}) {cooldown > 0 ? `[Bận - Cooldown ${cooldown}s]` : '• [Miễn phí]'}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -612,7 +655,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="sm:w-1/3">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Select Model</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Select Free Model</label>
               <select
                 value={testSelectedModel}
                 onChange={(e) => setTestSelectedModel(e.target.value)}
@@ -635,20 +678,36 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
             </div>
           </div>
 
+          {playgroundCooldownSecs > 0 && (
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+              <span>⏳</span>
+              <span>
+                Model này đang tạm quá tải lượt gọi. Hệ thống sẽ tự sẵn sàng lại sau{' '}
+                <strong>{playgroundCooldownSecs}s</strong>...
+              </span>
+            </div>
+          )}
+
           <div className="flex justify-end">
             <button
               type="button"
               onClick={handleRunPlayground}
-              disabled={isGenerating}
+              disabled={isGenerating || playgroundCooldownSecs > 0}
               className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50"
             >
               {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              <span>{isGenerating ? 'Đang gửi...' : 'Gửi Yêu Cầu'}</span>
+              <span>
+                {isGenerating
+                  ? 'Đang gửi...'
+                  : playgroundCooldownSecs > 0
+                  ? `Đang chờ (${playgroundCooldownSecs}s)`
+                  : 'Gửi Yêu Cầu'}
+              </span>
             </button>
           </div>
 
           {playgroundError && (
-            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 text-xs text-red-700">
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 text-xs text-red-700 dark:text-red-300">
               <strong>Lỗi:</strong> {playgroundError}
             </div>
           )}
@@ -656,7 +715,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
           {testResponse && (
             <div className="p-4 rounded-2xl bg-slate-900 text-slate-100 text-xs font-mono leading-relaxed space-y-2 border border-slate-800">
               <div className="flex items-center justify-between text-[11px] text-slate-400 border-b border-slate-800 pb-2">
-                <span>🤖 Response from: {testSelectedModel}</span>
+                <span>🤖 Response from: {testSelectedModel} (via 100% Free Fallback Pool)</span>
                 <span className="text-emerald-400 font-bold">200 OK</span>
               </div>
               <p className="whitespace-pre-wrap font-sans text-xs text-slate-200">{testResponse}</p>

@@ -55,6 +55,7 @@ export interface Course {
   originalPrice?: number;
   isCustomGenerated?: boolean;
   creationStatus?: 'completed' | 'processing' | 'failed';
+  generationError?: string | null;
   progressPercent: number;
   lessons: Lesson[];
   createdAt: string;

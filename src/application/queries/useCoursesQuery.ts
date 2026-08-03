@@ -1,24 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Course } from '../../core/entities';
 import { INITIAL_COURSES } from '../../infrastructure/data/mockCourses';
-
-const FASTAPI_URL = 'http://localhost:8000/api/v1/courses';
+import { getCourses } from '../../infrastructure/api/talk2meApi';
 
 export const useCoursesQuery = (category?: string, query?: string) => {
   return useQuery({
     queryKey: ['courses', category || 'all', query || ''],
     queryFn: async (): Promise<Course[]> => {
       try {
-        const url = new URL(FASTAPI_URL);
-        if (category && category !== 'all') url.searchParams.append('category', category);
-        if (query) url.searchParams.append('query', query);
-
-        const res = await fetch(url.toString());
-        if (res.ok) {
-          const apiCourses = await res.json();
-          if (Array.isArray(apiCourses) && apiCourses.length > 0) {
-            return apiCourses;
-          }
+        const apiCourses = await getCourses(category, query);
+        if (Array.isArray(apiCourses) && apiCourses.length > 0) {
+          return apiCourses;
         }
       } catch (err) {
         console.warn('API courses query failed, using local courses fallback:', err);
@@ -35,6 +27,13 @@ export const useCoursesQuery = (category?: string, query?: string) => {
           !query || c.title.toLowerCase().includes(query.toLowerCase()) || c.description.toLowerCase().includes(query.toLowerCase());
         return matchesCategory && matchesQuery;
       });
+    },
+    // Any course still being generated? Keep polling so its card updates live without a
+    // manual refresh — stop once nothing in the current data is 'processing' anymore.
+    refetchInterval: (q) => {
+      const data = q.state.data;
+      const hasProcessing = Array.isArray(data) && data.some((c) => c.creationStatus === 'processing');
+      return hasProcessing ? 4000 : false;
     },
   });
 };

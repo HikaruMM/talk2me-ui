@@ -9,8 +9,14 @@ import {
 } from '../../infrastructure/api/talk2meApi';
 
 export const useGenerateCourseMutation = () => {
+  const queryClient = useQueryClient();
   return useMutation<GenerateCourseResult, Error, { youtubeUrl: string; category: string; difficulty: string }>({
     mutationFn: ({ youtubeUrl, category, difficulty }) => generateCourse(youtubeUrl, category, difficulty),
+    onSuccess: () => {
+      // Kicked off (or resumed) a job — refresh the courses list so the new/retried
+      // course shows up right away in its 'processing' state.
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
+    },
   });
 };
 

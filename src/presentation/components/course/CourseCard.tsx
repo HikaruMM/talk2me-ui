@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Course } from '../../../core/entities';
-import { Play, BookOpen, CheckCircle, Clock } from 'lucide-react';
+import { Play, BookOpen, CheckCircle, Clock, Loader2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { useGenerateCourseMutation } from '../../../application/queries/useCourseGenerationQuery';
 
 interface CourseCardProps {
   course: Course;
@@ -8,8 +9,88 @@ interface CourseCardProps {
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({ course, onSelectCourse }) => {
+  const [retryError, setRetryError] = useState('');
+  const retryMutation = useGenerateCourseMutation();
+
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRetryError('');
+    try {
+      await retryMutation.mutateAsync({
+        youtubeUrl: course.youtubeUrl,
+        category: course.category,
+        difficulty: course.difficulty,
+      });
+    } catch (err: any) {
+      setRetryError(err.message || 'Không thể tạo lại khoá học.');
+    }
+  };
+
+  if (course.creationStatus === 'processing') {
+    return (
+      <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-4 border border-[#E4E8F0] dark:border-[#334155] shadow-sm opacity-60 pointer-events-none flex flex-col justify-between">
+        <div>
+          <div className="relative aspect-[16/10] rounded-2xl overflow-hidden mb-4 bg-slate-100 dark:bg-slate-800">
+            <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover grayscale" />
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+            </div>
+          </div>
+          <h3 className="font-bold text-base text-[#1B1F2E] dark:text-white line-clamp-2 mb-3 px-1 leading-snug">
+            {course.title}
+          </h3>
+        </div>
+        <div className="space-y-1.5 px-1">
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#2E68FF]">
+            <span>Đang tạo khoá học...</span>
+            <span>{course.progressPercent}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-[#F1F4F9] dark:bg-[#273449] rounded-full overflow-hidden">
+            <div className="h-full bg-[#2E68FF] transition-all" style={{ width: `${course.progressPercent}%` }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (course.creationStatus === 'failed') {
+    return (
+      <div className="bg-red-50/60 dark:bg-red-950/20 rounded-3xl p-4 border border-red-200 dark:border-red-900/60 shadow-sm flex flex-col justify-between">
+        <div>
+          <div className="relative aspect-[16/10] rounded-2xl overflow-hidden mb-4 bg-slate-100 dark:bg-slate-800">
+            <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover grayscale opacity-70" />
+            <div className="absolute inset-0 bg-red-900/30 flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-white" />
+            </div>
+          </div>
+          <h3 className="font-bold text-base text-[#1B1F2E] dark:text-white line-clamp-2 mb-2 px-1 leading-snug">
+            {course.title}
+          </h3>
+          <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold px-1 line-clamp-2 mb-3">
+            Tạo thất bại{course.generationError ? `: ${course.generationError}` : ''}
+          </p>
+        </div>
+        {retryError && (
+          <p className="text-[10px] text-red-600 dark:text-red-400 px-1 mb-2 line-clamp-2">{retryError}</p>
+        )}
+        <button
+          onClick={handleRetry}
+          disabled={retryMutation.isPending}
+          className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold text-xs tracking-wide uppercase transition-all shadow-sm flex items-center justify-center gap-2"
+        >
+          {retryMutation.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RotateCcw className="w-4 h-4" />
+          )}
+          <span>Tạo lại</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div 
+    <div
       onClick={() => onSelectCourse(course)}
       className="group bg-white dark:bg-[#1E293B] rounded-3xl p-4 border border-[#E4E8F0] dark:border-[#334155] shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between"
     >
@@ -21,7 +102,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, onSelectCourse }
             alt={course.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
-          
+
           {/* Overlay Play Button on Hover */}
           <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <div className="w-12 h-12 rounded-full bg-white text-[#2E68FF] flex items-center justify-center shadow-lg">
@@ -37,8 +118,8 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, onSelectCourse }
           {/* Progress Bar overlay if started */}
           {course.progressPercent > 0 && (
             <div className="absolute bottom-0 inset-x-0 h-1.5 bg-black/40">
-              <div 
-                className="h-full bg-[#2E68FF] transition-all" 
+              <div
+                className="h-full bg-[#2E68FF] transition-all"
                 style={{ width: `${course.progressPercent}%` }}
               />
             </div>
@@ -63,7 +144,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, onSelectCourse }
       </div>
 
       {/* Action Button */}
-      <button 
+      <button
         onClick={(e) => {
           e.stopPropagation();
           onSelectCourse(course);

@@ -12,15 +12,18 @@ import {
   useCourses
 } from './application';
 import { QueryProvider } from './application/providers/QueryProvider';
+import { useCoursesQuery } from './application/queries/useCoursesQuery';
+import { getCourseDetail } from './infrastructure/api/talk2meApi';
 import { HeaderTopNav, FooterSection } from './presentation/layout';
 import { AuthModal, AuthRequirementModal } from './presentation/components/auth';
 import { CreateCourseModal } from './presentation/components/course';
-import { 
-  HomePage, 
-  CourseDetailPage, 
-  FlashcardsPage, 
-  AnalyticsPage, 
-  CommunityPage, 
+import { Toast } from './presentation/components/common';
+import {
+  HomePage,
+  CourseDetailPage,
+  FlashcardsPage,
+  AnalyticsPage,
+  CommunityPage,
   SettingsPage,
   AuthPage,
   CoursesPage
@@ -29,7 +32,7 @@ import {
 function AppContent() {
   const { darkMode, setDarkMode } = useTheme();
   const { user, login, logout } = useAuth();
-  const { publicCourses, userCourses, addCourse, categories, addCategory } = useCourses();
+  const { publicCourses, userCourses, categories, addCategory } = useCourses();
   const navigate = useNavigate();
 
   const [currentTab, setCurrentTab] = useState<string>('home');
@@ -55,6 +58,11 @@ function AppContent() {
   // Modal create course
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [prefillUrl, setPrefillUrl] = useState<string>('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Real, server-backed courses (own courses show at any creationStatus; others only
+  // when public+completed) — this is what the Courses page actually renders now.
+  const { data: myCourses = [] } = useCoursesQuery(selectedCategory, searchQuery);
 
   const requireAuth = (
     action: () => void,
@@ -111,12 +119,26 @@ function AppContent() {
     );
   };
 
-  const handleCourseCreated = (newCourse: Course) => {
-    addCourse(newCourse);
-    setActiveCourse(newCourse);
-    setCurrentTab('course-detail');
+  const handleCourseQueued = () => {
     setIsCreateModalOpen(false);
+    setCurrentTab('courses');
     navigate('/courses');
+    setToastMessage('Đang tạo khoá học... Kết quả sẽ xuất hiện trong Khoá học của bạn.');
+  };
+
+  const handleSelectMyCourse = async (course: Course) => {
+    if (course.isCustomGenerated) {
+      try {
+        const full = await getCourseDetail(course.id);
+        setActiveCourse(full);
+      } catch (err) {
+        console.error('Failed to load course detail:', err);
+        return;
+      }
+    } else {
+      setActiveCourse(course);
+    }
+    setCurrentTab('course-detail');
   };
 
   const handleCreateCategory = (name: string) => {
@@ -132,14 +154,6 @@ function AppContent() {
 
   // Filter public demo courses for HomePage
   const filteredPublicCourses = publicCourses.filter((c) => {
-    const matchesCategory = selectedCategory === 'all' || c.categoryId === selectedCategory || c.category.toLowerCase() === selectedCategory.toLowerCase();
-    const query = searchQuery.toLowerCase().trim();
-    const matchesSearch = !query || c.title.toLowerCase().includes(query) || c.description.toLowerCase().includes(query) || c.category.toLowerCase().includes(query);
-    return matchesCategory && matchesSearch;
-  });
-
-  // Filter user-created courses for CoursesPage
-  const filteredUserCourses = userCourses.filter((c) => {
     const matchesCategory = selectedCategory === 'all' || c.categoryId === selectedCategory || c.category.toLowerCase() === selectedCategory.toLowerCase();
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch = !query || c.title.toLowerCase().includes(query) || c.description.toLowerCase().includes(query) || c.category.toLowerCase().includes(query);
@@ -231,16 +245,13 @@ function AppContent() {
                 />
               ) : (
                 <CoursesPage
-                  courses={filteredUserCourses}
+                  courses={myCourses}
                   categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
                   selectedCategory={selectedCategory}
                   onSelectCategory={setSelectedCategory}
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
-                  onSelectCourse={(course) => {
-                    setActiveCourse(course);
-                    setCurrentTab('course-detail');
-                  }}
+                  onSelectCourse={handleSelectMyCourse}
                   onCreateCourseClick={handleOpenCreateModal}
                 />
               )
@@ -306,7 +317,7 @@ function AppContent() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
-        onCourseCreated={handleCourseCreated}
+        onCourseQueued={handleCourseQueued}
         prefillUrl={prefillUrl}
         onCreateCategory={handleCreateCategory}
       />
@@ -319,6 +330,9 @@ function AppContent() {
         onClose={() => setAuthModal({ isOpen: false })}
         onConfirmAuth={(mode) => handleAuthConfirmModal(mode || 'login')}
       />
+
+      {/* Course generation queued / other transient notifications */}
+      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
     </div>
   );

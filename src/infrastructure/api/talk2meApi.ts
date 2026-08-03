@@ -16,21 +16,12 @@ interface LLMConfigPayload {
 
 /**
  * Builds the llm_config payload sent on every generation/grading request from the
- * user's client-side OpenRouter settings (Settings page, localStorage-only — see
- * infrastructure/api/openrouter.ts). The backend never stores this; it's forwarded to
- * OpenRouter for the lifetime of a single request/background job only.
- *
- * Returns undefined when the user hasn't configured their own key (BYOK off, or key
- * empty) — the field is then omitted from the request body and the backend falls back
- * to its own system-wide OpenRouter key/models (SYSTEM_OPENROUTER_API_KEY env var).
+ * user's client-side OpenRouter settings.
  */
-export function buildLlmConfig(): LLMConfigPayload | undefined {
+export function buildLlmConfig(): LLMConfigPayload {
   const config = getStoredConfig();
-  if (!config.useCustomKey || !config.apiKey.trim()) {
-    return undefined;
-  }
   return {
-    apiKey: config.apiKey.trim(),
+    apiKey: config.useCustomKey && config.apiKey.trim() ? config.apiKey.trim() : '',
     models: {
       defaultModel: config.models.defaultModel,
       courseGenerator: config.models.courseGenerator,
@@ -88,6 +79,15 @@ export function generateCourse(
 
 export function getGenerationStatus(courseId: string): Promise<GenerationStatus> {
   return apiFetch(`/courses/${courseId}/generation-status`);
+}
+
+export function getCourses(category?: string, query?: string): Promise<Course[]> {
+  const params = new URLSearchParams();
+  if (category && category !== 'all') params.set('category', category);
+  if (query) params.set('query', query);
+  const qs = params.toString();
+  const path = qs ? `/courses?${qs}` : '/courses';
+  return apiFetch(path);
 }
 
 export function getCourseDetail(courseId: string): Promise<Course> {

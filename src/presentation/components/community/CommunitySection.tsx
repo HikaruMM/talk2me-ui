@@ -967,7 +967,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = ({ onSelectCour
     setAiSummary("Đang nhờ AI phân tích lại lượt nói của nhóm...");
     try {
       const prompt = `Hãy viết một bản tóm tắt nhận xét buổi học tiếng Anh nhóm ngắn gọn, động viên bằng Tiếng Việt. Bao gồm: 3 từ vựng hay nhóm đã dùng, 2 lỗi ngữ pháp nhỏ cần lưu ý (kèm sửa lại đúng) và chấm điểm năng nổ 9.5/10.`;
-      const res = await generateCompletion(prompt, 'nvidia/nemotron-3-super-120b-a12b:free');
+      const res = await generateCompletion(prompt);
       setAiSummary(res);
     } catch {
       setAiSummary("🎉 Tóm tắt buổi học từ AI MC: Nhóm phát âm rất tự nhiên! Cần chú ý nhấn trọng âm từ 'Development' và chia thì quá khứ đơn 'went' thay vì 'go' khi kể chuyện. Điểm năng nổ: 9.8/10 🔥");
