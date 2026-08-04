@@ -165,7 +165,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
       return;
     }
 
-    const keywords = presetType === 'speed' ? ['flash-lite'] : presetType === 'pro' ? ['pro'] : ['flash'];
+    const keywords = presetType === 'speed' ? ['3.6-flash', 'flash-lite', 'flash'] : presetType === 'pro' ? ['pro'] : ['3.6-flash', '2.5-flash', 'flash'];
     const baseSeed = presetType === 'free' ? 0 : presetType === 'speed' ? 5 : 10;
     const updatedModels = {
       defaultModel: pickModelId(availableModels, keywords, baseSeed),
