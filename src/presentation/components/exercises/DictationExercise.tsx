@@ -264,7 +264,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
         </div>
 
         {/* CENTER COLUMN: VIDEO PLAYER */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="lg:col-span-5 space-y-4">
           <div className="aspect-video w-full rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-lg relative">
             <iframe
               ref={iframeRef}
@@ -304,7 +304,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
         </div>
 
         {/* RIGHT COLUMN: INPUT & HOTKEYS */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="lg:col-span-4 space-y-4">
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrevSegment}
@@ -343,7 +343,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
           <div className="p-4 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-sm space-y-3 relative">
             <textarea
               ref={textareaRef}
-              rows={4}
+              rows={2}
               value={typedTexts[activeSegmentIndex] || ''}
               onChange={(e) => {
                 setTypedTexts((prev) => ({ ...prev, [activeSegmentIndex]: e.target.value }));
