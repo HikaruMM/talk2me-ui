@@ -18,8 +18,10 @@ import {
   Send,
   Sliders,
   Check,
-  Info
+  Info,
+  HardDrive
 } from 'lucide-react';
+import { ResourceManagerSection } from '../components/settings/ResourceManagerSection';
 import {
   GeminiModel,
   GeminiConfig,
@@ -83,9 +85,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [activeTab, setActiveTab] = useState<'api' | 'resources'>(() => {
+    const hash = window.location.hash;
+    return hash === '#resources' || hash === '#resource-manager' ? 'resources' : 'api';
+  });
+
   useEffect(() => {
     setApiKeyInput(config.apiKey);
   }, [config.apiKey]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash === '#resources' || hash === '#resource-manager') {
+        setActiveTab('resources');
+      } else if (hash === '#api') {
+        setActiveTab('api');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const handleToggleMode = (useCustom: boolean) => {
     const updated = { ...config, useCustomKey: useCustom };
@@ -208,36 +229,75 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#1E293B] via-[#0F172A] to-[#1E1B4B] text-white shadow-xl relative overflow-hidden border border-slate-700/60">
-        <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
-          <Key className="w-80 h-80 text-blue-400" />
-        </div>
+      {/* Segmented Control Navigation Tabs */}
+      <div className="flex justify-center sm:justify-start">
+        <div className="p-1.5 bg-[#EEF2F6] dark:bg-slate-800/80 rounded-2xl border border-[#E4E8F0] dark:border-slate-700/60 inline-flex flex-wrap items-center gap-1.5 shadow-inner">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('api');
+              window.location.hash = 'api';
+            }}
+            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm flex items-center gap-2 transition-all duration-200 ${
+              activeTab === 'api'
+                ? 'bg-white dark:bg-[#1E293B] text-[#2E68FF] dark:text-blue-400 shadow-md border border-slate-200/60 dark:border-slate-700/60'
+                : 'text-slate-500 dark:text-slate-400 hover:text-[#1B1F2E] dark:hover:text-white'
+            }`}
+          >
+            <Key className="w-4 h-4" />
+            <span>Cấu Hình Gemini API Key</span>
+          </button>
 
-        <div className="relative z-10 space-y-4">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
-            <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              Miễn Phí Theo Hạn Mức Google AI Studio
-            </span>
-            <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-              Dùng Key Hệ Thống Nếu Chưa Cấu Hình
-            </span>
-            <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30">
-              Chi phí vận hành 0đ
-            </span>
-          </div>
-
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white font-display">
-            Cài Đặt Cấu Hình AI & Gemini API Key
-          </h1>
-
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-3xl">
-            Tận dụng sức mạnh của <strong>Gemini API (Google AI)</strong> cho mọi tính năng AI trong ứng dụng. Nếu bạn chưa cấu hình Key riêng, hệ thống sẽ tự dùng Key dùng chung (có giới hạn lượt gọi/ngày) để bạn luôn sẵn sàng học tập.
-          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('resources');
+              window.location.hash = 'resources';
+            }}
+            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm flex items-center gap-2 transition-all duration-200 ${
+              activeTab === 'resources'
+                ? 'bg-white dark:bg-[#1E293B] text-emerald-600 dark:text-emerald-400 shadow-md border border-slate-200/60 dark:border-slate-700/60'
+                : 'text-slate-500 dark:text-slate-400 hover:text-[#1B1F2E] dark:hover:text-white'
+            }`}
+          >
+            <HardDrive className="w-4 h-4" />
+            <span>Quản Lý Tài Nguyên AI (~90MB)</span>
+          </button>
         </div>
       </div>
+
+      {activeTab === 'api' ? (
+        <>
+          {/* Header Banner */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#1E293B] via-[#0F172A] to-[#1E1B4B] text-white shadow-xl relative overflow-hidden border border-slate-700/60">
+            <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+              <Key className="w-80 h-80 text-blue-400" />
+            </div>
+
+            <div className="relative z-10 space-y-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  Miễn Phí Theo Hạn Mức Google AI Studio
+                </span>
+                <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                  Dùng Key Hệ Thống Nếu Chưa Cấu Hình
+                </span>
+                <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                  Chi phí vận hành 0đ
+                </span>
+              </div>
+
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white font-display">
+                Cài Đặt Cấu Hình AI & Gemini API Key
+              </h1>
+
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-3xl">
+                Tận dụng sức mạnh của <strong>Gemini API (Google AI)</strong> cho mọi tính năng AI trong ứng dụng. Nếu bạn chưa cấu hình Key riêng, hệ thống sẽ tự dùng Key dùng chung (có giới hạn lượt gọi/ngày) để bạn luôn sẵn sàng học tập.
+              </p>
+            </div>
+          </div>
 
       {/* SECTION 1: HYBRID MODE TOGGLE */}
       <div className="p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs space-y-6">
@@ -574,109 +634,74 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
         </div>
       </div>
 
-      {/* SECTION 4: GUIDE */}
-      <div className="p-6 rounded-3xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-extrabold text-[#1B1F2E] dark:text-white flex items-center gap-2">
-            <Info className="w-5 h-5 text-[#2E68FF]" />
-            <span>Hướng Dẫn 3 Bước Lấy Gemini API Key Miễn Phí (0Đ)</span>
-          </h3>
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors shrink-0"
-          >
-            <span>Đến Google AI Studio</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-blue-100 dark:border-blue-900/40 space-y-1.5">
-            <div className="w-6 h-6 rounded-full bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center">1</div>
-            <h4 className="font-bold text-xs text-[#1B1F2E] dark:text-white">Đăng nhập Google</h4>
-            <p className="text-[11px] text-slate-500 leading-relaxed">Truy cập <strong>aistudio.google.com</strong> và đăng nhập bằng tài khoản Google.</p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-blue-100 dark:border-blue-900/40 space-y-1.5">
-            <div className="w-6 h-6 rounded-full bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center">2</div>
-            <h4 className="font-bold text-xs text-[#1B1F2E] dark:text-white">Tạo Key Mới</h4>
-            <p className="text-[11px] text-slate-500 leading-relaxed">Vào mục <strong>Get API Key</strong> {'->'} Bấm <strong>Create API Key</strong>.</p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-blue-100 dark:border-blue-900/40 space-y-1.5">
-            <div className="w-6 h-6 rounded-full bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center">3</div>
-            <h4 className="font-bold text-xs text-[#1B1F2E] dark:text-white">Dán Key & Sử dụng</h4>
-            <p className="text-[11px] text-slate-500 leading-relaxed">Sao chép mã Key <code>AIzaSy...</code> dán vào ô bên trên.</p>
-          </div>
-        </div>
-      </div>
-
-      {/* SECTION 5: PLAYGROUND */}
-      <div className="p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-extrabold text-[#1B1F2E] dark:text-white flex items-center gap-2">
-            <Bot className="w-5 h-5 text-purple-500" />
-            <span>4. Thử Nghiệm Gọi AI Trực Tiếp (AI Playground)</span>
-          </h3>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="sm:w-1/3">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Chọn Model</label>
-              <select
-                value={testSelectedModel}
-                onChange={(e) => setTestSelectedModel(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white"
-              >
-                {availableModels.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
+          {/* SECTION 5: PLAYGROUND */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold text-[#1B1F2E] dark:text-white flex items-center gap-2">
+                <Bot className="w-5 h-5 text-purple-500" />
+                <span>4. Thử Nghiệm Gọi AI Trực Tiếp (AI Playground)</span>
+              </h3>
             </div>
 
-            <div className="sm:w-2/3">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Prompt</label>
-              <input
-                type="text"
-                value={testPrompt}
-                onChange={(e) => setTestPrompt(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs text-[#1B1F2E] dark:text-white"
-              />
-            </div>
-          </div>
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="sm:w-1/3">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Chọn Model</label>
+                  <select
+                    value={testSelectedModel}
+                    onChange={(e) => setTestSelectedModel(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#1B1F2E] dark:text-white"
+                  >
+                    {availableModels.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={handleRunPlayground}
-              disabled={isGenerating}
-              className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50"
-            >
-              {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              <span>{isGenerating ? 'Đang gửi...' : 'Gửi Yêu Cầu'}</span>
-            </button>
-          </div>
-
-          {playgroundError && (
-            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 text-xs text-red-700 dark:text-red-300">
-              <strong>Lỗi:</strong> {playgroundError}
-            </div>
-          )}
-
-          {testResponse && (
-            <div className="p-4 rounded-2xl bg-slate-900 text-slate-100 text-xs font-mono leading-relaxed space-y-2 border border-slate-800">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 border-b border-slate-800 pb-2">
-                <span>🤖 Response from: {testSelectedModel}</span>
-                <span className="text-emerald-400 font-bold">200 OK</span>
+                <div className="sm:w-2/3">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Prompt</label>
+                  <input
+                    type="text"
+                    value={testPrompt}
+                    onChange={(e) => setTestPrompt(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-xs text-[#1B1F2E] dark:text-white"
+                  />
+                </div>
               </div>
-              <p className="whitespace-pre-wrap font-sans text-xs text-slate-200">{testResponse}</p>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleRunPlayground}
+                  disabled={isGenerating}
+                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <span>{isGenerating ? 'Đang gửi...' : 'Gửi Yêu Cầu'}</span>
+                </button>
+              </div>
+
+              {playgroundError && (
+                <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 text-xs text-red-700 dark:text-red-300">
+                  <strong>Lỗi:</strong> {playgroundError}
+                </div>
+              )}
+
+              {testResponse && (
+                <div className="p-4 rounded-2xl bg-slate-900 text-slate-100 text-xs font-mono leading-relaxed space-y-2 border border-slate-800">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 border-b border-slate-800 pb-2">
+                    <span>🤖 Response from: {testSelectedModel}</span>
+                    <span className="text-emerald-400 font-bold">200 OK</span>
+                  </div>
+                  <p className="whitespace-pre-wrap font-sans text-xs text-slate-200">{testResponse}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </>
+      ) : (
+        <ResourceManagerSection />
+      )}
 
     </div>
   );

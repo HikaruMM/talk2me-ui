@@ -16,7 +16,8 @@ import {
   GraduationCap, 
   LogOut, 
   ChevronRight, 
-  LogIn
+  LogIn,
+  HardDrive
 } from 'lucide-react';
 
 interface HeaderTopNavProps {
@@ -269,6 +270,31 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-500 text-white">BYOK</span>
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigate('/settings#resources');
+                            setCurrentTab('settings');
+                            setShowUserMenu(false);
+                            setTimeout(() => {
+                              const el = document.getElementById('resource-manager-section');
+                              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }, 100);
+                          }}
+                          className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 transition-colors group"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 flex items-center justify-center">
+                              <HardDrive className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="font-bold">Quản lý Tài nguyên AI</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500 text-white">90MB</span>
                             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                           </div>
                         </button>

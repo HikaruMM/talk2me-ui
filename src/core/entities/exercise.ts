@@ -35,6 +35,36 @@ export interface ShadowingLine {
   phoneticText?: string;
 }
 
+export interface PhonemeGuidance {
+  name: string;
+  tip: string;
+  videoUrl: string;
+  exampleWords: string[];
+}
+
+export interface PhonemeScore {
+  symbol: string;        // IPA symbol (e.g., "θ")
+  arpabet: string;       // ARPAbet (e.g., "TH")
+  score: number;         // 0-100%
+  rawGop: number;        // Raw GOP value
+  isCorrect: boolean;
+  guidance?: PhonemeGuidance;
+}
+
+export interface WordScore {
+  word: string;
+  score: number;         // 0-100%
+  phonemes: PhonemeScore[];
+}
+
+export interface ShadowingResult {
+  overallScore: number;        // 0-100%
+  pronunciationScore: number;  // % phonemes correct
+  fluencyScore: number;        // pacing assessment
+  wordAnalysis: WordScore[];
+  inferenceTimeMs: number;
+}
+
 export interface WritingPrompt {
   id: string;
   promptText: string;

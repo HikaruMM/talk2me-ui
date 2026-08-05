@@ -1,9 +1,16 @@
-import React, { useState, useRef } from 'react';
-import { ShadowingLine, ModeProgress } from '../../../core/entities';
-import { Mic, Square, Volume2, ArrowRight, CheckCircle2, RotateCcw, SkipForward } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ShadowingLine, ModeProgress, WordScore } from '../../../core/entities';
+import { Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2 } from 'lucide-react';
 import { updateProgress } from '../../../infrastructure/api/talk2meApi';
 import { CompletedModeGate } from './CompletedModeGate';
 import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
+import { usePronunciationScorer } from '../../hooks/usePronunciationScorer';
+import { isModelDownloaded } from '../../../infrastructure/ai/resourceManager';
+import { ModelDownloadPromptModal } from './ModelDownloadPromptModal';
+import { ScoreGauges } from './ScoreGauges';
+import { WordScoreDisplay } from './WordScoreDisplay';
+import { PhonemeBreakdown } from './PhonemeBreakdown';
 
 interface ShadowingExerciseProps {
   courseId: string;
@@ -24,14 +31,32 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const [, setRecordedAudioUrl] = useState<string | null>(null);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [hasEvaluated, setHasEvaluated] = useState(false);
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [isRetrying, setIsRetrying] = useState(false);
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const { iframeRef, embedUrl, playSegment } = useYoutubeSegmentPlayer(youtubeVideoId);
+
+  const navigate = useNavigate();
+  const [isPromptOpen, setIsPromptOpen] = useState(false);
+
+  // Pronunciation scorer
+  const { status: scorerStatus, loadProgress, result: scoringResult, scoreAudio, preload, reset: resetScorer } = usePronunciationScorer();
+
+  // Check if AI model is downloaded when component mounts
+  useEffect(() => {
+    isModelDownloaded().then((downloaded) => {
+      if (downloaded) {
+        preload();
+      } else {
+        setIsPromptOpen(true);
+      }
+    });
+  }, [preload]);
 
   if (progress?.completed && !isRetrying) {
     return (
@@ -72,12 +97,14 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
         }
       };
 
-      mediaRecorderRef.current.onstop = () => {
+      mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const url = URL.createObjectURL(audioBlob);
-        setRecordedAudioUrl(url);
-        setHasEvaluated(true);
+        setRecordedBlob(audioBlob);
         setCompletedLines((prev) => new Set(prev).add(currentIndex));
+
+        // Score pronunciation
+        await scoreAudio(audioBlob, currentLine.sampleText);
+        setHasEvaluated(true);
       };
 
       mediaRecorderRef.current.start();
@@ -106,16 +133,19 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 
   const goToLine = (idx: number) => {
     setCurrentIndex(idx);
-    setRecordedAudioUrl(null);
+    setRecordedBlob(null);
     setHasEvaluated(false);
     setIsRecording(false);
+    setSelectedWord(null);
+    resetScorer();
   };
 
   const handleNext = () => {
     if (currentIndex < lines.length - 1) {
       goToLine(currentIndex + 1);
     } else {
-      updateProgress(courseId, lessonId, 'shadowing', true, 90).catch((err) =>
+      const finalScore = scoringResult?.overallScore ?? 90;
+      updateProgress(courseId, lessonId, 'shadowing', true, finalScore).catch((err) =>
         console.warn('Không lưu được tiến độ Shadowing:', err)
       );
       onFinishShadowing();
@@ -123,10 +153,23 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
   };
 
   const handleRetryLine = () => {
-    setRecordedAudioUrl(null);
+    setRecordedBlob(null);
     setHasEvaluated(false);
     setIsRecording(false);
+    setSelectedWord(null);
+    resetScorer();
   };
+
+  const handleWordClick = (wordId: string) => {
+    setSelectedWord(selectedWord === wordId ? null : wordId);
+  };
+
+  // Find the selected WordScore
+  const selectedWordScore: WordScore | null = (() => {
+    if (!selectedWord || !scoringResult) return null;
+    const idx = parseInt(selectedWord.split('-').pop() || '0', 10);
+    return scoringResult.wordAnalysis[idx] ?? null;
+  })();
 
   /* ── Waveform bars ── */
   const waveformBars = Array.from({ length: 24 }, (_, i) => {
@@ -134,8 +177,28 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
     return heights[i % heights.length];
   });
 
+  const isScoring = scorerStatus === 'scoring' || scorerStatus === 'loading-model';
+
   return (
     <div className="w-full space-y-5">
+
+      {/* ── Model loading banner ── */}
+      {scorerStatus === 'loading-model' && loadProgress < 100 && !isRecording && (
+        <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 flex items-center gap-3">
+          <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+          <div className="flex-1">
+            <p className="text-xs font-bold text-blue-700 dark:text-blue-300">
+              Loading AI model... {loadProgress}%
+            </p>
+            <div className="mt-1 h-1.5 rounded-full bg-blue-200 dark:bg-blue-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all duration-300"
+                style={{ width: `${loadProgress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main 2-column layout ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -159,16 +222,18 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
         {/* ── RIGHT: Main practice area ── */}
         <div className="lg:col-span-7 space-y-5">
 
-          {/* ① HERO: Recording area — the main action */}
+          {/* ① HERO: Recording area */}
           <div className={`p-6 sm:p-8 rounded-3xl border transition-all duration-300 ${
             isRecording
               ? 'bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/30 dark:to-pink-950/30 border-pink-300 dark:border-pink-700 shadow-lg shadow-pink-500/10'
+              : isScoring
+              ? 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-300 dark:border-blue-700'
               : hasEvaluated
               ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
               : 'bg-white dark:bg-[#1E293B] border-[#E4E8F0] dark:border-[#334155]'
           }`}>
 
-            {/* Current sentence to shadow */}
+            {/* Current sentence */}
             <div className="text-center mb-6">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-900/40 text-pink-600 dark:text-pink-300 mb-3">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest">
@@ -176,9 +241,20 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                 </span>
               </div>
 
-              <h3 className="text-lg sm:text-xl font-bold text-[#1B1F2E] dark:text-white leading-relaxed px-2">
-                "{currentLine.sampleText}"
-              </h3>
+              {/* Word-level color display (when scored) or plain text */}
+              {scoringResult && hasEvaluated ? (
+                <div className="mt-2 mb-2">
+                  <WordScoreDisplay
+                    wordAnalysis={scoringResult.wordAnalysis}
+                    selectedWord={selectedWord}
+                    onWordClick={handleWordClick}
+                  />
+                </div>
+              ) : (
+                <h3 className="text-lg sm:text-xl font-bold text-[#1B1F2E] dark:text-white leading-relaxed px-2">
+                  "{currentLine.sampleText}"
+                </h3>
+              )}
 
               {currentLine.phoneticText && (
                 <p className="text-xs font-mono text-[#5A6478] dark:text-[#CBD5E1] tracking-wide mt-1.5">
@@ -195,13 +271,17 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                   className={`w-[3px] rounded-full transition-all duration-200 ${
                     isRecording
                       ? 'bg-pink-400 dark:bg-pink-500'
+                      : isScoring
+                      ? 'bg-blue-400 dark:bg-blue-500'
                       : hasEvaluated
                       ? 'bg-emerald-300 dark:bg-emerald-700'
                       : 'bg-slate-200 dark:bg-slate-700'
                   }`}
                   style={{
-                    height: isRecording ? `${h + Math.random() * 8}px` : `${h * 0.4}px`,
-                    opacity: isRecording ? 0.6 + Math.random() * 0.4 : 0.4,
+                    height: isRecording ? `${h + Math.random() * 8}px`
+                      : isScoring ? `${h * 0.6 + Math.sin(Date.now() / 200 + i) * 4}px`
+                      : `${h * 0.4}px`,
+                    opacity: isRecording ? 0.6 + Math.random() * 0.4 : isScoring ? 0.5 : 0.4,
                     animationDelay: `${i * 50}ms`,
                     ...(isRecording ? { animation: `pulse 0.6s ease-in-out ${i * 50}ms infinite alternate` } : {}),
                   }}
@@ -212,8 +292,10 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
             <p className="text-center text-xs font-bold uppercase tracking-wider mb-5 text-[#5A6478] dark:text-[#94A3B8]">
               {isRecording
                 ? '🎙 Recording... Speak out loud!'
+                : isScoring
+                ? '🧠 Analyzing pronunciation...'
                 : hasEvaluated
-                ? '✅ Audio captured successfully'
+                ? '✅ Analysis complete — tap a word for details'
                 : 'Tap the microphone to start recording'}
             </p>
 
@@ -244,6 +326,12 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                 >
                   <Square className="w-7 h-7 fill-white" />
                 </button>
+              ) : isScoring ? (
+                <div className="rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-xl shadow-blue-500/30"
+                  style={{ width: 72, height: 72 }}
+                >
+                  <Loader2 className="w-8 h-8 animate-spin" />
+                </div>
               ) : (
                 <div className="flex items-center gap-3">
                   <button
@@ -266,37 +354,34 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
             </div>
           </div>
 
-          {/* ② Score card (after recording) */}
-          {hasEvaluated && (
+          {/* ② Score gauges (after scoring) */}
+          {hasEvaluated && scoringResult && (
             <div className="p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-emerald-200 dark:border-emerald-800 shadow-sm space-y-4">
-              <div className="flex items-center gap-2 font-bold text-sm text-emerald-700 dark:text-emerald-300">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                <span>Shadowing Result</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-sm text-emerald-700 dark:text-emerald-300">
+                  <span>📊</span>
+                  <span>Pronunciation Analysis</span>
+                </div>
+                <span className="text-[10px] font-bold text-slate-400">
+                  {scoringResult.inferenceTimeMs}ms
+                </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: 'Pronunciation', score: 88, color: 'text-pink-600 dark:text-pink-400' },
-                  { label: 'Pacing', score: 92, color: 'text-blue-600 dark:text-blue-400' },
-                  { label: 'Fluency', score: 90, color: 'text-emerald-600 dark:text-emerald-400' },
-                ].map(({ label, score, color }) => (
-                  <div
-                    key={label}
-                    className="p-3 rounded-2xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E4E8F0] dark:border-[#334155] text-center"
-                  >
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-[#95A0B4] dark:text-[#64748B] mb-1">
-                      {label}
-                    </span>
-                    <span className={`text-xl font-extrabold ${color}`}>
-                      {score}%
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <ScoreGauges
+                overallScore={scoringResult.overallScore}
+                pronunciationScore={scoringResult.pronunciationScore}
+                fluencyScore={scoringResult.fluencyScore}
+              />
             </div>
           )}
 
-
+          {/* ③ Phoneme breakdown (when a word is selected) */}
+          {selectedWordScore && (
+            <PhonemeBreakdown
+              wordScore={selectedWordScore}
+              onClose={() => setSelectedWord(null)}
+            />
+          )}
 
           {/* ④ Bottom navigation */}
           <div className="flex items-center justify-between gap-3 pt-1">
@@ -311,7 +396,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
             </button>
 
             <div className="flex items-center gap-2">
-              {!hasEvaluated && (
+              {!hasEvaluated && !isScoring && (
                 <button
                   onClick={() => {
                     setCompletedLines((prev) => new Set(prev).add(currentIndex));
@@ -338,6 +423,18 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 
         </div>
       </div>
+      {/* Model Download Prompt Modal */}
+      <ModelDownloadPromptModal
+        isOpen={isPromptOpen}
+        onClose={() => setIsPromptOpen(false)}
+        onGoToSettings={() => {
+          navigate('/settings#resources');
+          setTimeout(() => {
+            const el = document.getElementById('resource-manager-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+        }}
+      />
     </div>
   );
 };

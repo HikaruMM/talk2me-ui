@@ -11,6 +11,62 @@ import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
 
 const FALLBACK_VIDEO_ID = 'dQw4w9WgXcQ';
 
+/** Splits on any run of whitespace and drops empty tokens — robust against the double
+ * spaces/leading-trailing whitespace that naive `.split(' ')` chokes on. */
+const tokenizeWords = (text: string): string[] => text.trim().split(/\s+/).filter(Boolean);
+
+const cleanWord = (w: string): string => w.replace(/[^\w]/g, '').toLowerCase();
+
+type WordEvalResult = { word: string; status: 'correct' | 'incorrect' | 'missing'; typed?: string };
+
+/**
+ * Aligns typed words against target words by minimum edit distance (word-level), instead
+ * of comparing by raw index position. Positional comparison cascades: one missed/extra word
+ * anywhere in the sentence shifts every word after it out of alignment, marking otherwise-
+ * correct words as wrong. Edit-distance alignment finds the real correct/incorrect/missing
+ * words regardless of where the user drifted, and silently drops extra typed words that
+ * don't correspond to anything in the target (no separate "extra" status needed in the UI).
+ */
+const alignWords = (targetWords: string[], typedWords: string[]): WordEvalResult[] => {
+  const n = targetWords.length;
+  const m = typedWords.length;
+  const cleanTarget = targetWords.map(cleanWord);
+  const cleanTyped = typedWords.map(cleanWord);
+
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 0; i <= n; i++) dp[i][0] = i;
+  for (let j = 0; j <= m; j++) dp[0][j] = j;
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (cleanTarget[i - 1] === cleanTyped[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  const ops: WordEvalResult[] = [];
+  let i = n;
+  let j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && cleanTarget[i - 1] === cleanTyped[j - 1] && dp[i][j] === dp[i - 1][j - 1]) {
+      ops.push({ word: targetWords[i - 1], status: 'correct' });
+      i--; j--;
+    } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
+      ops.push({ word: targetWords[i - 1], status: 'incorrect', typed: typedWords[j - 1] });
+      i--; j--;
+    } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+      ops.push({ word: targetWords[i - 1], status: 'missing' });
+      i--;
+    } else {
+      j--; // extra typed word with no corresponding target word — drop it
+    }
+  }
+  ops.reverse();
+  return ops;
+};
+
 interface DictationExerciseProps {
   courseId: string;
   lessonId: string;
@@ -60,7 +116,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
   const playCurrentSegment = () => playSegment(currentSegment.startTime, currentSegment.endTime);
 
   const getMaskedSentence = (text: string, revealedCount: number) => {
-    const words = text.split(' ');
+    const words = tokenizeWords(text);
     return words
       .map((w, idx) => {
         if (idx < revealedCount) return w;
@@ -71,7 +127,7 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
 
   const handleRevealWordHint = () => {
     const currentHints = hintsRevealed[activeSegmentIndex] || 0;
-    const totalWords = currentSegment.targetText.split(' ').length;
+    const totalWords = tokenizeWords(currentSegment.targetText).length;
     if (currentHints < totalWords) {
       setHintsRevealed((prev) => ({
         ...prev,
@@ -80,37 +136,21 @@ export const DictationExercise: React.FC<DictationExerciseProps> = ({
     }
   };
 
-  const evaluateWords = () => {
-    const typed = (typedTexts[activeSegmentIndex] || '').trim().toLowerCase();
-    const targetWords = currentSegment.targetText.split(' ');
-    const typedWords = typed.split(/\s+/);
-
-    return targetWords.map((targetW, i) => {
-      const cleanTarget = targetW.replace(/[^\w]/g, '').toLowerCase();
-      const cleanTyped = (typedWords[i] || '').replace(/[^\w]/g, '').toLowerCase();
-
-      if (!cleanTyped) {
-        return { word: targetW, status: 'missing' };
-      }
-      if (cleanTyped === cleanTarget) {
-        return { word: targetW, status: 'correct' };
-      }
-      return { word: targetW, status: 'incorrect', typed: typedWords[i] };
-    });
+  const evaluateWords = (): WordEvalResult[] => {
+    const targetWords = tokenizeWords(currentSegment.targetText);
+    const typedWords = tokenizeWords(typedTexts[activeSegmentIndex] || '');
+    return alignWords(targetWords, typedWords);
   };
 
   const computeOverallAccuracy = (): number | undefined => {
     let totalWords = 0;
     let correctWords = 0;
     segments.forEach((seg, idx) => {
-      const typed = (typedTexts[idx] || '').trim().toLowerCase();
-      const typedWords = typed.split(/\s+/);
-      seg.targetText.split(' ').forEach((targetW, i) => {
-        totalWords++;
-        const cleanTarget = targetW.replace(/[^\w]/g, '').toLowerCase();
-        const cleanTyped = (typedWords[i] || '').replace(/[^\w]/g, '').toLowerCase();
-        if (cleanTyped && cleanTyped === cleanTarget) correctWords++;
-      });
+      const targetWords = tokenizeWords(seg.targetText);
+      const typedWords = tokenizeWords(typedTexts[idx] || '');
+      const results = alignWords(targetWords, typedWords);
+      totalWords += targetWords.length;
+      correctWords += results.filter((r) => r.status === 'correct').length;
     });
     return totalWords > 0 ? Math.round((correctWords / totalWords) * 100) : undefined;
   };
