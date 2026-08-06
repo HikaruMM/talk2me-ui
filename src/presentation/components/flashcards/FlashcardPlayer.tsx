@@ -17,10 +17,12 @@ import {
   Maximize2,
   Minimize2,
   Lightbulb,
-  Keyboard
+  Keyboard,
+  Mic
 } from 'lucide-react';
 import { FlashcardSet } from '../../../core/entities';
 import { LearnModePlayer } from './LearnModePlayer';
+import { PronunciationModePlayer } from './PronunciationModePlayer';
 
 interface FlashcardPlayerProps {
   set: FlashcardSet;
@@ -33,7 +35,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
   onBack,
   onEditSet,
 }) => {
-  const [activeMode, setActiveMode] = useState<'flashcard' | 'quiz' | 'match'>('flashcard');
+  const [activeMode, setActiveMode] = useState<'flashcard' | 'quiz' | 'match' | 'pronounce'>('flashcard');
 
   // Flashcard Flip State
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -227,6 +229,18 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
         >
           <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
           <span>Ghép thẻ (Match Game)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveMode('pronounce')}
+          className={`flex-1 py-3 px-4 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
+            activeMode === 'pronounce'
+              ? 'bg-[#12B76A] text-white shadow-md'
+              : 'text-slate-600 dark:text-[#CBD5E1] hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+          }`}
+        >
+          <Mic className="w-4 h-4 text-emerald-400" />
+          <span>Luyện phát âm AI</span>
         </button>
       </div>
 
@@ -584,6 +598,11 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* MODE 4: PRONUNCIATION PLAYER */}
+      {activeMode === 'pronounce' && (
+        <PronunciationModePlayer set={set} onFinish={() => setActiveMode('flashcard')} />
       )}
 
     </div>
