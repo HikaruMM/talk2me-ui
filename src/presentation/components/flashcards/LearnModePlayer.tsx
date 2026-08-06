@@ -190,10 +190,10 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
   return (
     <div className={`max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200 ${
       isFullscreen
-        ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] p-4 sm:p-6 overflow-y-auto flex flex-col justify-center items-center max-w-none'
+        ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] p-4 sm:p-6 overflow-y-auto flex flex-col justify-start items-center max-w-none'
         : ''
     }`}>
-      <div className={`w-full ${isFullscreen ? 'max-w-3xl h-full flex flex-col justify-between my-auto py-2' : 'space-y-6'}`}>
+      <div className={`w-full ${isFullscreen ? 'max-w-3xl space-y-4 pt-2 pb-6' : 'space-y-6'}`}>
       
       {/* 1. TOP SEGMENTED PROGRESS BAR */}
       <div className="flex items-center gap-3 px-2 py-1">
