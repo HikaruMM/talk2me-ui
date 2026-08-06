@@ -20,6 +20,7 @@ import {
   Keyboard
 } from 'lucide-react';
 import { FlashcardSet } from '../../../core/entities';
+import { LearnModePlayer } from './LearnModePlayer';
 
 interface FlashcardPlayerProps {
   set: FlashcardSet;
@@ -231,293 +232,295 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
 
       {/* MODE 1: FLASHCARD PLAYER */}
       {activeMode === 'flashcard' && (
-        <div className={`space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] text-slate-900 dark:text-white p-6 overflow-y-auto flex flex-col justify-between' : ''}`}>
+        <div className={`space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] text-slate-900 dark:text-white p-3 sm:p-6 overflow-y-auto sm:overflow-hidden flex flex-col justify-center items-center' : ''}`}>
+          <div className={`w-full ${isFullscreen ? 'max-w-3xl h-full flex flex-col justify-between space-y-3 sm:space-y-4 py-1 sm:py-2' : 'space-y-6'}`}>
           
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
-              <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-[11px] sm:text-xs">
+              <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[9px] sm:text-[10px]">
                 {learningIds.length}
               </span>
               <span>Đang học</span>
             </div>
 
-            <div className="text-center font-extrabold text-xs text-slate-500 dark:text-slate-400">
+            <div className="text-center font-extrabold text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
               <span className="text-slate-800 dark:text-slate-200">{currentIndex + 1} / {set.cards.length}</span>
-              <span className="mx-2">•</span>
-              <span className="truncate max-w-[150px] sm:max-w-[250px] inline-block align-bottom text-slate-600 dark:text-slate-300">
+              <span className="mx-1.5 sm:mx-2">•</span>
+              <span className="truncate max-w-[110px] sm:max-w-[250px] inline-block align-bottom text-slate-600 dark:text-slate-300">
                 {set.title}
               </span>
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-[11px] sm:text-xs">
               <span>Đã biết</span>
-              <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px]">
+              <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] sm:text-[10px]">
                 {knownIds.length}
               </span>
             </div>
           </div>
 
-          <div
-            onClick={() => setIsFlipped(!isFlipped)}
-            className="relative w-full min-h-[380px] sm:min-h-[460px] rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl p-8 flex flex-col justify-between cursor-pointer transition-all duration-300 hover:border-blue-500/50 group select-none"
-          >
-            <div className="flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowHint(!showHint);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors ${
-                  showHint
-                    ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 border-amber-300'
-                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-transparent hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-              >
-                <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                <span>{showHint ? 'Ẩn gợi ý' : 'Hiển thị gợi ý'}</span>
-              </button>
+          {/* 3D Card Flip Outer Container — Dead Center */}
+          <div className="[perspective:1000px] w-full flex-1 flex items-center justify-center my-auto py-2">
+            <div
+              onClick={() => setIsFlipped(!isFlipped)}
+              className={`relative w-full max-w-2xl sm:max-w-3xl ${isFullscreen ? 'h-[50vh] sm:h-[55vh] min-h-[280px] sm:min-h-[360px] max-h-[520px]' : 'min-h-[340px] sm:min-h-[440px]'} cursor-pointer select-none transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}
+            >
+              {/* FRONT FACE */}
+              <div className="absolute inset-0 [backface-visibility:hidden] rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-4 sm:p-8 flex flex-col justify-between transition-colors hover:border-blue-500/50">
+                <div className="flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowHint(!showHint);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-bold transition-colors ${
+                      showHint
+                        ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 border-amber-300'
+                        : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-transparent hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{showHint ? 'Ẩn gợi ý' : 'Hiển thị gợi ý'}</span>
+                  </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    speak(!isFlipped ? currentCard.frontText : currentCard.backText);
-                  }}
-                  className="p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 transition-transform"
-                  title="Phát âm"
-                >
-                  <Volume2 className="w-4 h-4" />
-                </button>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        speak(currentCard.frontText);
+                      }}
+                      className="p-1.5 sm:p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 transition-transform"
+                      title="Phát âm"
+                    >
+                      <Volume2 className="w-4 h-4" />
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleStar(currentCard.id);
-                  }}
-                  className={`p-2 rounded-full border transition-colors ${
-                    starredIds.includes(currentCard.id)
-                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent'
-                  }`}
-                  title="Gắn sao"
-                >
-                  <Star className={`w-4 h-4 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
-                </button>
-              </div>
-            </div>
-
-            <div className="text-center my-auto px-4 py-8 space-y-4">
-              {!isFlipped ? (
-                <div className="space-y-4">
-                  <h2 className="text-3xl sm:text-5xl font-black text-[#1B1F2E] dark:text-white tracking-tight leading-snug">
-                    {currentCard.frontText}
-                  </h2>
-                  {currentCard.phonetic && (
-                    <p className="text-base font-mono text-[#2E68FF] font-bold">{currentCard.phonetic}</p>
-                  )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStar(currentCard.id);
+                      }}
+                      className={`p-1.5 sm:p-2 rounded-full border transition-colors ${
+                        starredIds.includes(currentCard.id)
+                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent'
+                      }`}
+                      title="Gắn sao"
+                    >
+                      <Star className={`w-4 h-4 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-4 animate-in fade-in duration-200">
-                  <p className="text-2xl sm:text-4xl font-extrabold text-[#1B1F2E] dark:text-white leading-relaxed">
-                    {currentCard.backText}
-                  </p>
 
-                  {currentCard.imageUrl && (
-                    <div className="max-w-xs mx-auto rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                      <img src={currentCard.imageUrl} alt="Card visual" className="w-full h-40 object-cover" />
+                <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[220px] sm:max-h-[300px]">
+                  <div className="space-y-3 sm:space-y-4">
+                    <h2 className="text-2xl sm:text-4xl font-black text-[#1B1F2E] dark:text-white tracking-tight leading-snug break-words">
+                      {currentCard.frontText}
+                    </h2>
+                    {currentCard.phonetic && (
+                      <p className="text-sm sm:text-base font-mono text-[#2E68FF] font-bold">{currentCard.phonetic}</p>
+                    )}
+                  </div>
+
+                  {showHint && (
+                    <div className="p-2.5 sm:p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-[11px] sm:text-xs font-semibold max-w-md mx-auto animate-in fade-in">
+                      💡 Gợi ý: {currentCard.phonetic ? `Phiên âm: ${currentCard.phonetic} | ` : ''}{currentCard.backText.slice(0, 15)}...
                     </div>
                   )}
+                </div>
 
-                  {currentCard.exampleSentence && (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 italic max-w-lg mx-auto">
-                      "{currentCard.exampleSentence}"
+                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[10px] sm:text-[11px] font-bold flex items-center justify-center gap-1.5 sm:gap-2">
+                  <Keyboard className="w-3.5 h-3.5 hidden sm:inline" />
+                  <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono">phím cách</kbd>)</span></span>
+                </div>
+              </div>
+
+              {/* BACK FACE */}
+              <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-4 sm:p-8 flex flex-col justify-between transition-colors hover:border-blue-500/50">
+                <div className="flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowHint(!showHint);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-bold transition-colors ${
+                      showHint
+                        ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 border-amber-300'
+                        : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-transparent hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{showHint ? 'Ẩn gợi ý' : 'Hiển thị gợi ý'}</span>
+                  </button>
+
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        speak(currentCard.backText);
+                      }}
+                      className="p-1.5 sm:p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 transition-transform"
+                      title="Phát âm"
+                    >
+                      <Volume2 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStar(currentCard.id);
+                      }}
+                      className={`p-1.5 sm:p-2 rounded-full border transition-colors ${
+                        starredIds.includes(currentCard.id)
+                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent'
+                      }`}
+                      title="Gắn sao"
+                    >
+                      <Star className={`w-4 h-4 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[220px] sm:max-h-[300px]">
+                  <div className="space-y-3 sm:space-y-4">
+                    <p className="text-xl sm:text-3xl font-extrabold text-[#1B1F2E] dark:text-white leading-relaxed break-words">
+                      {currentCard.backText}
                     </p>
+
+                    {currentCard.imageUrl && (
+                      <div className="max-w-xs mx-auto rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                        <img src={currentCard.imageUrl} alt="Card visual" className="w-full h-28 sm:h-40 object-cover" />
+                      </div>
+                    )}
+
+                    {currentCard.exampleSentence && (
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 italic max-w-lg mx-auto">
+                        "{currentCard.exampleSentence}"
+                      </p>
+                    )}
+                  </div>
+
+                  {showHint && (
+                    <div className="p-2.5 sm:p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-[11px] sm:text-xs font-semibold max-w-md mx-auto animate-in fade-in">
+                      💡 Gợi ý: {currentCard.phonetic ? `Phiên âm: ${currentCard.phonetic} | ` : ''}{currentCard.backText.slice(0, 15)}...
+                    </div>
                   )}
                 </div>
-              )}
 
-              {showHint && (
-                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-xs font-semibold max-w-md mx-auto animate-in fade-in">
-                  💡 Gợi ý: {currentCard.phonetic ? `Phiên âm: ${currentCard.phonetic} | ` : ''}{currentCard.backText.slice(0, 15)}...
+                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[10px] sm:text-[11px] font-bold flex items-center justify-center gap-1.5 sm:gap-2">
+                  <Keyboard className="w-3.5 h-3.5 hidden sm:inline" />
+                  <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono">phím cách</kbd>)</span></span>
                 </div>
-              )}
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[11px] font-bold flex items-center justify-center gap-2">
-              <Keyboard className="w-3.5 h-3.5" />
-              <span>Nhấn <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono">phím cách</kbd> hoặc nhấp vào thẻ để lật</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-4 pt-2">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 pt-1 sm:pt-2">
+            <label className="flex items-center gap-1.5 sm:gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
               <button
                 type="button"
                 onClick={() => setTrackProgress(!trackProgress)}
-                className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
+                className={`w-8 sm:w-9 h-4.5 sm:h-5 rounded-full p-0.5 transition-colors ${
                   trackProgress ? 'bg-[#2E68FF]' : 'bg-slate-300 dark:bg-slate-700'
                 }`}
               >
                 <div
-                  className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                    trackProgress ? 'translate-x-4' : 'translate-x-0'
+                  className={`w-3.5 sm:w-4 h-3.5 sm:h-4 rounded-full bg-white transition-transform ${
+                    trackProgress ? 'translate-x-3.5 sm:translate-x-4' : 'translate-x-0'
                   }`}
                 />
               </button>
               <span className="hidden sm:inline">Theo dõi tiến độ</span>
             </label>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5 sm:gap-4">
               <button
                 type="button"
                 onClick={handleMarkLearning}
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-slate-200 dark:border-slate-700 text-amber-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
+                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-slate-200 dark:border-slate-700 text-amber-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
                 title="Đang học"
               >
-                <X className="w-7 h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
+                <X className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
               </button>
 
               <button
                 type="button"
                 onClick={handleMarkKnown}
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-slate-200 dark:border-slate-700 text-emerald-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
+                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-slate-200 dark:border-slate-700 text-emerald-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
                 title="Đã biết"
               >
-                <Check className="w-7 h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
+                <Check className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={handleUndo}
                 disabled={currentIndex === 0}
-                className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors"
+                className="p-2.5 sm:p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors"
                 title="Hoàn tác"
               >
-                <RotateCcw className="w-5 h-5" />
+                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
               <button
                 type="button"
                 onClick={toggleFullscreen}
-                className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="p-2.5 sm:p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 title={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
               >
-                {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+                {isFullscreen ? <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5" />}
               </button>
             </div>
           </div>
 
-          <div className="pt-8 space-y-4 border-t border-[#E4E8F0] dark:border-[#334155]">
-            <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-              Danh sách từ trong học phần này ({set.cards.length} thẻ)
-            </h3>
+          {!isFullscreen && (
+            <div className="pt-8 space-y-4 border-t border-[#E4E8F0] dark:border-[#334155]">
+              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                Danh sách từ trong học phần này ({set.cards.length} thẻ)
+              </h3>
 
-            <div className="space-y-3">
-              {set.cards.map((c, idx) => (
-                <div
-                  key={c.id || idx}
-                  className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-4 items-center"
-                >
-                  <div className="sm:col-span-5 font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                    <button
-                      onClick={() => speak(c.frontText)}
-                      className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
-                    >
-                      <Volume2 className="w-3.5 h-3.5" />
-                    </button>
-                    <span>{c.frontText}</span>
-                    {c.phonetic && <span className="text-xs text-blue-500 font-normal">({c.phonetic})</span>}
-                  </div>
+              <div className="space-y-3">
+                {set.cards.map((c, idx) => (
+                  <div
+                    key={c.id || idx}
+                    className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-2xs grid grid-cols-1 sm:grid-cols-12 gap-4 items-center"
+                  >
+                    <div className="sm:col-span-5 font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <button
+                        onClick={() => speak(c.frontText)}
+                        className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
+                      <span>{c.frontText}</span>
+                      {c.phonetic && <span className="text-xs text-blue-500 font-normal">({c.phonetic})</span>}
+                    </div>
 
-                  <div className="sm:col-span-7 text-xs text-slate-600 dark:text-slate-300 font-medium border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-2 sm:pt-0 sm:pl-4">
-                    {c.backText}
+                    <div className="sm:col-span-7 text-xs text-slate-600 dark:text-slate-300 font-medium border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-2 sm:pt-0 sm:pl-4">
+                      {c.backText}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
+          </div>
         </div>
       )}
 
       {/* MODE 2: QUIZ / LEARN MODE */}
       {activeMode === 'quiz' && (
-        <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-lg space-y-6">
-          {!isQuizFinished ? (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between text-xs font-extrabold text-slate-500">
-                <span>Câu {quizIndex + 1} / {set.cards.length}</span>
-                <span className="text-emerald-600">Điểm: {quizScore}</span>
-              </div>
-
-              <div className="space-y-2 text-center">
-                <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider">
-                  Chọn định nghĩa đúng cho thuật ngữ sau:
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                  "{set.cards[quizIndex]?.frontText}"
-                </h2>
-              </div>
-
-              <div className="space-y-3">
-                {set.cards.map((optCard, optIdx) => (
-                  <button
-                    key={optIdx}
-                    onClick={() => {
-                      if (selectedOption !== null) return;
-                      setSelectedOption(optCard.backText);
-                      if (optCard.backText === set.cards[quizIndex].backText) {
-                        setQuizScore((prev) => prev + 1);
-                      }
-                      setTimeout(() => {
-                        setSelectedOption(null);
-                        if (quizIndex < set.cards.length - 1) {
-                          setQuizIndex((prev) => prev + 1);
-                        } else {
-                          setIsQuizFinished(true);
-                        }
-                      }, 1200);
-                    }}
-                    className={`w-full p-4 rounded-2xl border text-left font-bold text-xs transition-all ${
-                      selectedOption === null
-                        ? 'bg-[#F8FAFC] dark:bg-[#0F172A] border-[#E4E8F0] dark:border-[#334155] hover:border-blue-500'
-                        : optCard.backText === set.cards[quizIndex].backText
-                        ? 'bg-emerald-100 dark:bg-emerald-950 border-emerald-500 text-emerald-800 dark:text-emerald-300'
-                        : selectedOption === optCard.backText
-                        ? 'bg-red-100 dark:bg-red-950 border-red-500 text-red-800 dark:text-red-300'
-                        : 'bg-slate-100 dark:bg-slate-800 opacity-50'
-                    }`}
-                  >
-                    {optCard.backText}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 space-y-4">
-              <Award className="w-16 h-16 text-emerald-500 mx-auto" />
-              <h3 className="text-2xl font-black">Hoàn thành bài kiểm tra!</h3>
-              <p className="text-sm text-slate-500">
-                Bạn đạt <strong>{quizScore} / {set.cards.length}</strong> câu đúng!
-              </p>
-              <button
-                onClick={() => {
-                  setQuizIndex(0);
-                  setQuizScore(0);
-                  setIsQuizFinished(false);
-                }}
-                className="px-6 py-3 rounded-2xl bg-blue-600 text-white font-extrabold text-xs"
-              >
-                Luyện tập lại
-              </button>
-            </div>
-          )}
-        </div>
+        <LearnModePlayer set={set} onFinish={() => setActiveMode('flashcard')} />
       )}
 
       {/* MODE 3: MATCH GAME */}
