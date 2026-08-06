@@ -10,7 +10,9 @@ import {
   Sparkles,
   HelpCircle,
   PenTool,
-  Headphones
+  Headphones,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { FlashcardSet, Flashcard } from '../../../core/entities';
 
@@ -35,6 +37,7 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
   const [queue, setQueue] = useState<Flashcard[]>(cards);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [questionType, setQuestionType] = useState<QuestionType>('mcq');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // MCQ state
   const [options, setOptions] = useState<string[]>([]);
@@ -185,7 +188,12 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
   const progressPercent = Math.min(100, Math.round((masteredCount / totalCount) * 100));
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200">
+    <div className={`max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200 ${
+      isFullscreen
+        ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] p-4 sm:p-6 overflow-y-auto flex flex-col justify-center items-center max-w-none'
+        : ''
+    }`}>
+      <div className={`w-full ${isFullscreen ? 'max-w-3xl h-full flex flex-col justify-between my-auto py-2' : 'space-y-6'}`}>
       
       {/* 1. TOP SEGMENTED PROGRESS BAR */}
       <div className="flex items-center gap-3 px-2 py-1">
@@ -242,9 +250,19 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
               </button>
             </div>
 
-            <span className="text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
-              Câu {currentIdx + 1} / {queue.length}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
+                Câu {currentIdx + 1} / {queue.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                title={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
+              >
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           {/* Question Content */}
@@ -438,6 +456,7 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
         </div>
       )}
 
+      </div>
     </div>
   );
 };
