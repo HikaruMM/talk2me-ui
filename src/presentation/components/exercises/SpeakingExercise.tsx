@@ -32,7 +32,7 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   const [evaluation, setEvaluation] = useState<SpeakingEvaluation | null>(null);
   const [evalError, setEvalError] = useState('');
   const [practiceCount, setPracticeCount] = useState(3);
-  const [showCompactVideo, setShowCompactVideo] = useState(true);
+  const [showCompactVideo, setShowCompactVideo] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showHint, setShowHint] = useState(false);
   /** true after user stops recording — enables the "Submit" button */

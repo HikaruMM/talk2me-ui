@@ -20,6 +20,17 @@ export interface VocabularyItem {
   endTime?: number;
 }
 
+/** Independent from VocabularyItem — its own content type with its own fields, not derived
+ * from or linked to any vocabulary entry. */
+export interface GrammarStructureItem {
+  pattern: string;
+  explanation: string;
+  exampleSentence: string;
+  exampleTranslation?: string;
+  startTime?: number;
+  endTime?: number;
+}
+
 export interface QuizQuestion {
   id: string;
   question: string;

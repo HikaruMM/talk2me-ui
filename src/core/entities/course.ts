@@ -6,7 +6,8 @@ import {
   WritingPrompt,
   SpeakingPrompt,
   ModeProgress,
-  VocabularyItem
+  VocabularyItem,
+  GrammarStructureItem
 } from './exercise';
 
 export interface Category {
@@ -29,6 +30,7 @@ export interface Lesson {
   theoryContent: string;
   keyTakeaways: string[];
   vocabulary?: VocabularyItem[];
+  grammarStructures?: GrammarStructureItem[];
   quizQuestions: QuizQuestion[];
   dictationSegments: DictationSegment[];
   shadowingLines: ShadowingLine[];

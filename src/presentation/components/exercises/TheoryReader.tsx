@@ -4,8 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { Lesson } from '../../../core/entities';
 import { CheckCircle2, ArrowRight, Lightbulb } from 'lucide-react';
 import { updateProgress } from '../../../infrastructure/api/talk2meApi';
-import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
 import { VocabularyTable } from './VocabularyTable';
+import { GrammarStructureList } from './GrammarStructureList';
 
 /* ── Custom Markdown table components for premium styling ── */
 const markdownComponents: Components = {
@@ -62,7 +62,10 @@ interface TheoryReaderProps {
   lesson: Lesson;
   courseId: string;
   lessonId: string;
-  youtubeVideoId?: string;
+  /** Seeks/plays the shared video already shown in CourseDetailPage's left column — Theory
+   * has no video of its own, so vocabulary/grammar "listen" buttons control that one instead
+   * of spawning a second (previously invisible) player. */
+  onPlaySegment: (start: number, end: number) => void;
   onCompleteTheory: () => void;
   onStartQuiz: () => void;
 }
@@ -71,12 +74,11 @@ export const TheoryReader: React.FC<TheoryReaderProps> = ({
   lesson,
   courseId,
   lessonId,
-  youtubeVideoId,
+  onPlaySegment,
   onCompleteTheory,
   onStartQuiz,
 }) => {
   const isRead = Boolean(lesson.modeProgress?.theory?.completed);
-  const { iframeRef, embedUrl, playSegment } = useYoutubeSegmentPlayer(youtubeVideoId);
 
   const handleMarkAsRead = () => {
     updateProgress(courseId, lessonId, 'theory', true).catch((err) =>
@@ -103,28 +105,21 @@ export const TheoryReader: React.FC<TheoryReaderProps> = ({
         </span>
       </div>
 
-      {/* Hidden player — only needs to exist so the vocabulary "listen" buttons can seek it,
-          no need to be visible for Theory (unlike Shadowing where the video is the focus). */}
-      {embedUrl && (
-        <iframe
-          ref={iframeRef}
-          src={embedUrl}
-          title="YouTube Video Player"
-          className="hidden"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
-      )}
-
-      {/* Vocabulary — fixed React table (not LLM-authored Markdown) so every lesson shows
-          the exact same layout, with a play button seeking the real video moment. */}
-      <VocabularyTable items={lesson.vocabulary || []} onPlay={playSegment} />
-
-      {/* Main Lesson Markdown Content */}
+      {/* Main Lesson Markdown Content (Introduction + Usage Context) — shown FIRST so the
+          learner sees what the lesson is about before diving into vocabulary/grammar detail. */}
       <div className="prose prose-slate dark:prose-invert max-w-none text-sm sm:text-base leading-relaxed">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
           {lesson.theoryContent}
         </ReactMarkdown>
       </div>
+
+      {/* Vocabulary — fixed React table (not LLM-authored Markdown) so every lesson shows
+          the exact same layout, with a play button seeking the real video moment. */}
+      <VocabularyTable items={lesson.vocabulary || []} onPlay={onPlaySegment} />
+
+      {/* Grammar structures — independent list, own fields, same play-by-timestamp
+          mechanism as vocabulary but no cross-reference between the two. */}
+      <GrammarStructureList items={lesson.grammarStructures || []} onPlay={onPlaySegment} />
 
       {/* Key Takeaways Card */}
       {lesson.keyTakeaways && lesson.keyTakeaways.length > 0 && (

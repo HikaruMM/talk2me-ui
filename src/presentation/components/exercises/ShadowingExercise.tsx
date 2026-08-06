@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShadowingLine, ModeProgress, WordScore } from '../../../core/entities';
-import { Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2, Upload, PlayCircle } from 'lucide-react';
+import { Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2, Upload, PlayCircle, Video } from 'lucide-react';
 import { updateProgress } from '../../../infrastructure/api/talk2meApi';
 import { CompletedModeGate } from './CompletedModeGate';
 import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
@@ -36,6 +36,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
   const [hasEvaluated, setHasEvaluated] = useState(false);
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [isRetrying, setIsRetrying] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -236,27 +237,53 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
         </div>
       )}
 
-      {/* ── Main 2-column layout ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      {/* ── Video toggle bar ── */}
+      <div className="p-3 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs flex items-center justify-between">
+        <span className="px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300 font-extrabold text-xs">
+          🔁 Shadowing Studio
+        </span>
+        <button
+          onClick={() => setShowVideo(!showVideo)}
+          className="flex items-center gap-1.5 text-xs font-bold text-pink-600 hover:text-pink-700 bg-pink-50 dark:bg-pink-950/60 px-3 py-1.5 rounded-xl border border-pink-200 dark:border-pink-800 transition-colors"
+        >
+          <Video className="w-3.5 h-3.5" />
+          <span>{showVideo ? 'Ẩn Video' : 'Hiện Video bài học'}</span>
+        </button>
+      </div>
 
-        {/* ── LEFT: Video ── */}
-        <div className="lg:col-span-5 lg:sticky lg:top-20">
-          {embedUrl && (
-            <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-lg">
-              <iframe
-                ref={iframeRef}
-                src={embedUrl}
-                title="YouTube Video Player"
-                className="w-full h-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          )}
-        </div>
+      {/* ── Main 2-column layout ── */}
+      <div className={`grid grid-cols-1 ${showVideo ? 'lg:grid-cols-12' : ''} gap-5 items-start`}>
+
+        {/* ── LEFT: Video (hidden iframe always exists for playSegment) ── */}
+        {showVideo && (
+          <div className="lg:col-span-5 lg:sticky lg:top-20">
+            {embedUrl && (
+              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-lg">
+                <iframe
+                  ref={iframeRef}
+                  src={embedUrl}
+                  title="YouTube Video Player"
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {/* Hidden iframe for playSegment when video panel is collapsed */}
+        {!showVideo && embedUrl && (
+          <iframe
+            ref={iframeRef}
+            src={embedUrl}
+            title="YouTube Video Player"
+            className="hidden"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        )}
 
         {/* ── RIGHT: Main practice area ── */}
-        <div className="lg:col-span-7 space-y-5">
+        <div className={`${showVideo ? 'lg:col-span-7' : ''} space-y-5`}>
 
           {/* ① HERO: Recording area */}
           <div className={`p-6 sm:p-8 rounded-3xl border transition-all duration-300 ${
