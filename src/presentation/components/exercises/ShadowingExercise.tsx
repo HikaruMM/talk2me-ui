@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShadowingLine, ModeProgress, WordScore } from '../../../core/entities';
-import { Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2 } from 'lucide-react';
+import { Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2, Upload, PlayCircle } from 'lucide-react';
 import { updateProgress } from '../../../infrastructure/api/talk2meApi';
 import { CompletedModeGate } from './CompletedModeGate';
 import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
@@ -32,6 +32,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [hasEvaluated, setHasEvaluated] = useState(false);
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [isRetrying, setIsRetrying] = useState(false);
@@ -39,13 +40,35 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recordedAudioRef = useRef<HTMLAudioElement | null>(null);
   const { iframeRef, embedUrl, playSegment } = useYoutubeSegmentPlayer(youtubeVideoId);
+
+  // Object URL for playing back the user's own recording/upload — recreated whenever
+  // recordedBlob changes, and revoked on cleanup to avoid leaking memory across lines.
+  useEffect(() => {
+    if (!recordedBlob) {
+      setRecordedAudioUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(recordedBlob);
+    setRecordedAudioUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [recordedBlob]);
+
+  const playRecordedAudio = () => {
+    if (!recordedAudioUrl) return;
+    recordedAudioRef.current?.pause();
+    const audio = new Audio(recordedAudioUrl);
+    recordedAudioRef.current = audio;
+    audio.play().catch((err) => console.warn('Không phát lại được bản ghi âm:', err));
+  };
 
   const navigate = useNavigate();
   const [isPromptOpen, setIsPromptOpen] = useState(false);
 
   // Pronunciation scorer
-  const { status: scorerStatus, loadProgress, result: scoringResult, scoreAudio, preload, reset: resetScorer } = usePronunciationScorer();
+  const { status: scorerStatus, loadProgress, result: scoringResult, error: scorerError, scoreAudio, preload, reset: resetScorer } = usePronunciationScorer();
 
   // Check if AI model is downloaded when component mounts
   useEffect(() => {
@@ -85,6 +108,15 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 
   const playSample = () => playSegment(currentLine.startTime, currentLine.endTime);
 
+  /** Shared by mic recording and the dev "upload WAV" test path — runs the exact same
+   * scoring pipeline regardless of where the audio blob came from. */
+  const runScoring = async (blob: Blob) => {
+    setRecordedBlob(blob);
+    setCompletedLines((prev) => new Set(prev).add(currentIndex));
+    await scoreAudio(blob, currentLine.sampleText);
+    setHasEvaluated(true);
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -99,12 +131,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 
       mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setRecordedBlob(audioBlob);
-        setCompletedLines((prev) => new Set(prev).add(currentIndex));
-
-        // Score pronunciation
-        await scoreAudio(audioBlob, currentLine.sampleText);
-        setHasEvaluated(true);
+        await runScoring(audioBlob);
       };
 
       mediaRecorderRef.current.start();
@@ -118,6 +145,15 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
         setCompletedLines((prev) => new Set(prev).add(currentIndex));
       }, 3000);
     }
+  };
+
+  /** Dev/test helper: lets you upload a real .wav recording instead of using the mic,
+   * to check whether the scoring pipeline is actually producing real analysis. */
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so re-selecting the same file fires onChange again
+    if (!file) return;
+    await runScoring(file);
   };
 
   const stopRecording = () => {
@@ -294,10 +330,18 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                 ? '🎙 Recording... Speak out loud!'
                 : isScoring
                 ? '🧠 Analyzing pronunciation...'
-                : hasEvaluated
+                : hasEvaluated && scoringResult
                 ? '✅ Analysis complete — tap a word for details'
+                : hasEvaluated && scorerError
+                ? '⚠️ Chấm điểm phát âm thất bại — thử ghi âm lại'
                 : 'Tap the microphone to start recording'}
             </p>
+
+            {hasEvaluated && !scoringResult && scorerError && (
+              <div className="mb-5 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300 text-center">
+                Không thể phân tích phát âm lần này ({scorerError}). Bạn vẫn có thể tiếp tục — điểm phần này sẽ không được ghi nhận chi tiết.
+              </div>
+            )}
 
             {/* Mic button + actions */}
             <div className="flex items-center justify-center gap-4">
@@ -310,6 +354,15 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Re-record</span>
                   </button>
+                  {recordedAudioUrl && (
+                    <button
+                      onClick={playRecordedAudio}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+                    >
+                      <PlayCircle className="w-3.5 h-3.5" />
+                      <span>Nghe lại của bạn</span>
+                    </button>
+                  )}
                   <button
                     onClick={playSample}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-pink-600 dark:text-pink-300 hover:bg-pink-50 dark:hover:bg-pink-950/40 transition-colors"
@@ -348,7 +401,21 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                   >
                     <Mic className="w-8 h-8" />
                   </button>
-                  <div className="w-[104px]" /> {/* Spacer to center mic */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Tải file .wav lên để test chấm điểm (thay vì ghi âm)"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-slate-500 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Upload WAV</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".wav,audio/wav,audio/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
                 </div>
               )}
             </div>
@@ -372,6 +439,20 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                 pronunciationScore={scoringResult.pronunciationScore}
                 fluencyScore={scoringResult.fluencyScore}
               />
+
+              {scoringResult.recognizedTranscript && (
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Hệ thống nghe được bạn nói
+                  </p>
+                  <p className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2">
+                    "{scoringResult.recognizedTranscript}"
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Câu mẫu: "{currentLine.sampleText}"
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

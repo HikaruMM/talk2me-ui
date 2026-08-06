@@ -29,8 +29,8 @@ const VOCAB: Record<string, number> = {
   '<pad>': 0, '<s>': 1, '</s>': 2, '<unk>': 3,
   '|': 4, // word separator (space)
   'E': 5, 'T': 6, 'A': 7, 'O': 8, 'N': 9, 'I': 10, 'H': 11,
-  'S': 12, 'R': 13, 'D': 14, 'L': 15, 'U': 16, 'W': 17,
-  'M': 18, 'C': 19, 'F': 20, 'G': 21, 'Y': 22, 'P': 23,
+  'S': 12, 'R': 13, 'D': 14, 'L': 15, 'U': 16, 'M': 17,
+  'W': 18, 'C': 19, 'F': 20, 'G': 21, 'Y': 22, 'P': 23,
   'B': 24, 'V': 25, 'K': 26, "'": 27, 'X': 28, 'J': 29,
   'Q': 30, 'Z': 31,
 };
@@ -51,6 +51,10 @@ interface AlignedSegment {
   startFrame: number;
   endFrame: number; // exclusive
   score: number;    // mean log-probability
+  /** True when Viterbi found zero real frames for this character (common for very short
+   * words like "a" squeezed out by longer neighbors) — `score` is then just a guess read
+   * from an interpolated position, not real evidence, and should not be trusted alone. */
+  interpolated: boolean;
 }
 
 // ─── CTC Forced Alignment (Viterbi) ─────────────────────
@@ -170,6 +174,7 @@ function ctcForcedAlign(
     }
 
     let meanScore: number;
+    let interpolated = false;
     if (startF >= 0) {
       let sumScore = 0;
       let count = 0;
@@ -179,10 +184,17 @@ function ctcForcedAlign(
       }
       meanScore = sumScore / count;
     } else {
-      // Interpolate if token has no frames
+      // Viterbi assigned this character zero frames — common for very short/fast letters
+      // (e.g. the word "a") squeezed out by longer neighboring words. The interpolated
+      // position is only a proportional guess, not real evidence — it can easily land
+      // mid-way through a NEIGHBORING word instead of where "a" actually was, so the
+      // log-probability read here is unreliable and callers should not trust it alone
+      // (see the `interpolated` flag — mapToPhonemeScores falls back to checking the
+      // free-decode transcript for these instead of scoring off this frame guess).
+      interpolated = true;
       startF = Math.floor((i / N) * T);
       endF = Math.min(startF + 1, T);
-      meanScore = -3.5;
+      meanScore = logProbs[lpIdx(startF, targetIds[i])];
     }
 
     segments.push({
@@ -191,6 +203,7 @@ function ctcForcedAlign(
       startFrame: startF,
       endFrame: endF,
       score: meanScore,
+      interpolated,
     });
   }
 
@@ -252,16 +265,88 @@ function textToCharIds(text: string): number[] {
   return ids;
 }
 
+// ─── Content-match guard ──────────────────────────────────
+//
+// CTC forced-alignment is FORCED: given any audio, it will always find *some* frame to
+// pin each target character/phoneme to and score it, even if the audio contains a
+// completely different sentence (or silence). Without an independent check of what was
+// actually said, a wrong-content recording can still come back with a deceptively high
+// score. A free (unconstrained) greedy CTC decode gives an actual transcript of what the
+// model heard, which we compare against the target text before trusting the forced-align
+// scores at all.
+
+/** Greedy CTC decode: argmax per frame, collapse repeated ids, drop blanks. No language
+ * model / beam search — just enough to sanity-check whether the audio roughly matches. */
+function greedyCtcDecode(logProbs: Float32Array, T: number, V: number): string {
+  const chars: string[] = [];
+  let prevId = -1;
+
+  for (let t = 0; t < T; t++) {
+    let bestId = 0;
+    let bestVal = -Infinity;
+    for (let v = 0; v < V; v++) {
+      const val = logProbs[t * V + v];
+      if (val > bestVal) {
+        bestVal = val;
+        bestId = v;
+      }
+    }
+    if (bestId !== BLANK_ID && bestId !== prevId) {
+      chars.push(bestId === SPACE_ID ? ' ' : ID_TO_TOKEN[bestId] || '');
+    }
+    prevId = bestId;
+  }
+
+  return chars.join('').trim().replace(/\s+/g, ' ');
+}
+
+/** Character-level similarity ratio (1 - normalized Levenshtein distance), 0..1.
+ * Character-level rather than word-level because the greedy decode is a rough ASR pass —
+ * a genuine attempt at the target sentence will still share most letters even with
+ * per-word mistakes, while a wrong sentence entirely shares very few. */
+function textSimilarity(a: string, b: string): number {
+  const s1 = a.toLowerCase().replace(/[^a-z ]/g, '');
+  const s2 = b.toLowerCase().replace(/[^a-z ]/g, '');
+  const n = s1.length;
+  const m = s2.length;
+  if (n === 0 && m === 0) return 1;
+  if (n === 0 || m === 0) return 0;
+
+  const dp = new Array(m + 1);
+  for (let j = 0; j <= m; j++) dp[j] = j;
+
+  for (let i = 1; i <= n; i++) {
+    let prevDiag = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= m; j++) {
+      const temp = dp[j];
+      dp[j] = s1[i - 1] === s2[j - 1] ? prevDiag : 1 + Math.min(prevDiag, dp[j], dp[j - 1]);
+      prevDiag = temp;
+    }
+  }
+
+  return 1 - dp[m] / Math.max(n, m);
+}
+
+/** Below this, the recording is treated as "didn't actually attempt this sentence" rather
+ * than "attempted it with mistakes" — forced-alignment scores below this point are noise,
+ * not a real assessment. */
+const CONTENT_MATCH_THRESHOLD = 0.4;
+
 // ─── Map char segments → phoneme scores ──────────────────
+
+// GOP values chosen so gopToPercent() lands on a clearly-good / clearly-bad percentage —
+// used only as the word-level fallback below, not derived from any per-frame measurement.
+const FALLBACK_GOP_RECOGNIZED = -0.45; // -> 85%
+const FALLBACK_GOP_NOT_RECOGNIZED = -2.55; // -> 15%
 
 async function mapToPhonemeScores(
   segments: AlignedSegment[],
   text: string,
-  logProbs: Float32Array,
-  T: number,
-  V: number
+  decodedTranscript: string
 ): Promise<WordScore[]> {
   const wordPhonemes = await fetchWordPhonemes(text);
+  const decodedWords = new Set(decodedTranscript.toLowerCase().split(/\s+/).filter(Boolean));
   const results: WordScore[] = [];
   let segIdx = 0;
 
@@ -275,35 +360,43 @@ async function mapToPhonemeScores(
       continue;
     }
 
-    const wStart = wordSegs[0].startFrame;
-    const wEnd = wordSegs[wordSegs.length - 1].endFrame;
-    const wDur = Math.max(1, wEnd - wStart);
+    // Very short words (e.g. "a", "I") frequently get squeezed out of the Viterbi path
+    // entirely by longer neighbors, leaving NO real frame-level evidence anywhere in this
+    // word — scoring off an interpolated-position guess in that case tends to land mid-way
+    // through a neighboring word and score low regardless of whether "a" was said correctly.
+    // When that happens for the whole word, fall back to the free-decode transcript (which
+    // has no such positional fragility) to check whether the word was recognized at all.
+    const noRealAlignment = wordSegs.every((seg) => seg.interpolated);
+    const cleanWordForLookup = wp.word.toLowerCase().replace(/[^a-z]/g, '');
+    const recognizedByFreeDecode = noRealAlignment && decodedWords.has(cleanWordForLookup);
+
     const nPh = wp.arpabet.length;
-    const framesPerPh = Math.max(1, Math.floor(wDur / nPh));
+    // Distribute this word's ALIGNED CHARACTERS across its phonemes (proportionally —
+    // char-count and phoneme-count rarely match exactly for English spelling).
+    const charsPerPh = wordSegs.length / nPh;
 
     const phResults: PhonemeScore[] = [];
 
     for (let i = 0; i < nPh; i++) {
       const arpa = wp.arpabet[i];
-      let phStart = wStart + i * framesPerPh;
-      let phEnd = i === nPh - 1 ? wEnd : wStart + (i + 1) * framesPerPh;
-      phEnd = Math.min(phEnd, T);
-      phStart = Math.min(phStart, phEnd);
+      const startIdx = Math.floor(i * charsPerPh);
+      const endIdx = i === nPh - 1 ? wordSegs.length : Math.max(startIdx + 1, Math.floor((i + 1) * charsPerPh));
+      const phSegs = wordSegs.slice(startIdx, endIdx);
 
       let gop: number;
-      if (phEnd > phStart) {
-        let sumMax = 0;
-        for (let t = phStart; t < phEnd; t++) {
-          let maxVal = -Infinity;
-          for (let v = 0; v < V; v++) {
-            const val = logProbs[t * V + v];
-            if (val > maxVal) maxVal = val;
-          }
-          sumMax += maxVal;
-        }
-        gop = sumMax / (phEnd - phStart);
+      if (noRealAlignment) {
+        gop = recognizedByFreeDecode ? FALLBACK_GOP_RECOGNIZED : FALLBACK_GOP_NOT_RECOGNIZED;
       } else {
-        gop = -3.5;
+        // Use the per-target-character log-probability that ctcForcedAlign already computed
+        // (it correctly indexes logProbs at the TARGET character's own id — see
+        // AlignedSegment.score). Previously this rescanned logProbs taking max() across ALL
+        // 32 letter classes per frame, which measures "was the model confident about *some*
+        // letter here" (true for almost any clearly-spoken audio, right or wrong) instead of
+        // "was the model confident about *this* letter" — so mispronunciations and even
+        // wrong words scored as high as correct ones.
+        gop = phSegs.length > 0
+          ? phSegs.reduce((sum, seg) => sum + seg.score, 0) / phSegs.length
+          : FALLBACK_GOP_NOT_RECOGNIZED;
       }
 
       const ipa = ARPA_TO_IPA[arpa] || arpa;
@@ -344,7 +437,14 @@ async function getSession(
 ): Promise<ort.InferenceSession> {
   if (cachedSession) return cachedSession;
 
-  // Configure ONNX Runtime Web
+  // Configure ONNX Runtime Web.
+  // wasmPaths MUST be set explicitly: onnxruntime-web dynamically `import()`s its own
+  // ort-wasm-simd-threaded.*.mjs glue file at load time. It can't be served from Vite's
+  // public/ dir — Vite's dev server hard-refuses to serve anything under publicDir to a JS
+  // `import()` ("should not be imported from source code"). Served from the backend instead
+  // (a different origin entirely, so Vite's dev server never sees the request) — see
+  // talk2me-api/main.py's /ort static mount, files copied from node_modules/onnxruntime-web/dist.
+  ort.env.wasm.wasmPaths = 'http://localhost:8000/ort/';
   ort.env.wasm.numThreads = 1;
 
   // Check if model is already stored in browser CacheStorage
@@ -450,6 +550,17 @@ export async function scorePronounciation(
     // 4. Log-softmax
     const logProbs = logSoftmax(logitsFlat, T, V);
 
+    // 4b. Content-match guard: free decode (no target constraint) to check whether the
+    // audio is even roughly the right sentence before trusting a forced-alignment score.
+    const decodedTranscript = greedyCtcDecode(logProbs, T, V);
+    const contentSimilarity = textSimilarity(decodedTranscript, targetText);
+    if (contentSimilarity < CONTENT_MATCH_THRESHOLD) {
+      throw new Error(
+        `Nội dung ghi âm không khớp với câu mẫu (nghe ra: "${decodedTranscript || '(im lặng hoặc không rõ)'}"). ` +
+        `Hãy đọc đúng câu: "${targetText}"`
+      );
+    }
+
     // 5. Get char IDs from target text
     const charIds = textToCharIds(targetText);
 
@@ -462,7 +573,7 @@ export async function scorePronounciation(
     }
 
     // 7. Map to phoneme scores (async — calls cmudict API)
-    const wordAnalysis = await mapToPhonemeScores(segments, targetText, logProbs, T, V);
+    const wordAnalysis = await mapToPhonemeScores(segments, targetText, decodedTranscript);
 
     // 8. Compute overall scores
     const allScores: number[] = [];
@@ -502,6 +613,7 @@ export async function scorePronounciation(
       fluencyScore,
       wordAnalysis,
       inferenceTimeMs,
+      recognizedTranscript: decodedTranscript,
     };
   } catch (error) {
     onStatusChange?.('error');

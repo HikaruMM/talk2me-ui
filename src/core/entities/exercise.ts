@@ -63,6 +63,9 @@ export interface ShadowingResult {
   fluencyScore: number;        // pacing assessment
   wordAnalysis: WordScore[];
   inferenceTimeMs: number;
+  /** Rough free-decode transcript of what the model actually heard (no target-text
+   * constraint) — lets the user see what was recognized vs. the target sentence. */
+  recognizedTranscript: string;
 }
 
 export interface WritingPrompt {
