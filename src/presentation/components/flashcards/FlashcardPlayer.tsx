@@ -454,25 +454,73 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
               <span className="hidden sm:inline">Theo dõi tiến độ</span>
             </label>
 
-            <div className="flex items-center gap-2.5 sm:gap-4">
-              <button
-                type="button"
-                onClick={handleMarkLearning}
-                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-slate-200 dark:border-slate-700 text-amber-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
-                title="Đang học"
-              >
-                <X className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
-              </button>
+            {trackProgress ? (
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {/* 1. AGAIN (< 1 min) */}
+                <button
+                  type="button"
+                  onClick={handleMarkLearning}
+                  className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
+                  title="Chưa nhớ - Ôn lại sau 1 phút"
+                >
+                  <span className="text-[9px] sm:text-[10px] font-extrabold opacity-75 group-hover:opacity-100">&lt; 1 phút</span>
+                  <span className="text-[11px] sm:text-xs font-black">Học lại</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handleMarkKnown}
-                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-slate-200 dark:border-slate-700 text-emerald-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
-                title="Đã biết"
-              >
-                <Check className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
-              </button>
-            </div>
+                {/* 2. HARD (10 min) */}
+                <button
+                  type="button"
+                  onClick={handleMarkLearning}
+                  className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
+                  title="Khó nhớ - Ôn lại sau 10 phút"
+                >
+                  <span className="text-[9px] sm:text-[10px] font-extrabold opacity-75 group-hover:opacity-100">10 phút</span>
+                  <span className="text-[11px] sm:text-xs font-black">Khó</span>
+                </button>
+
+                {/* 3. GOOD (1 day) */}
+                <button
+                  type="button"
+                  onClick={handleMarkKnown}
+                  className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
+                  title="Nhớ tốt - Ôn lại vào ngày mai"
+                >
+                  <span className="text-[9px] sm:text-[10px] font-extrabold opacity-75 group-hover:opacity-100">1 ngày</span>
+                  <span className="text-[11px] sm:text-xs font-black">Tốt</span>
+                </button>
+
+                {/* 4. EASY (4 days) */}
+                <button
+                  type="button"
+                  onClick={handleMarkKnown}
+                  className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
+                  title="Rất thuộc - Ôn lại sau 4 ngày"
+                >
+                  <span className="text-[9px] sm:text-[10px] font-extrabold opacity-75 group-hover:opacity-100">4 ngày</span>
+                  <span className="text-[11px] sm:text-xs font-black">Dễ</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2.5 sm:gap-4">
+                <button
+                  type="button"
+                  onClick={handleMarkLearning}
+                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-slate-200 dark:border-slate-700 text-amber-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
+                  title="Đang học"
+                >
+                  <X className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleMarkKnown}
+                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-slate-200 dark:border-slate-700 text-emerald-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
+                  title="Đã biết"
+                >
+                  <Check className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center gap-1.5 sm:gap-2">
               <button
