@@ -7,6 +7,19 @@ export interface ModeProgress {
   accuracy: number | null;
 }
 
+export interface VocabularyItem {
+  term: string;
+  phonetic?: string;
+  meaning: string;
+  exampleSentence: string;
+  exampleTranslation?: string;
+  /** Real video timestamps for the example sentence — absent when the backend couldn't
+   * confidently locate this sentence in the transcript, in which case no play button
+   * should be shown rather than seeking to a guessed/wrong position. */
+  startTime?: number;
+  endTime?: number;
+}
+
 export interface QuizQuestion {
   id: string;
   question: string;

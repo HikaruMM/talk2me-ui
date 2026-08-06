@@ -4,6 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { Lesson } from '../../../core/entities';
 import { CheckCircle2, ArrowRight, Lightbulb } from 'lucide-react';
 import { updateProgress } from '../../../infrastructure/api/talk2meApi';
+import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
+import { VocabularyTable } from './VocabularyTable';
 
 /* ── Custom Markdown table components for premium styling ── */
 const markdownComponents: Components = {
@@ -60,6 +62,7 @@ interface TheoryReaderProps {
   lesson: Lesson;
   courseId: string;
   lessonId: string;
+  youtubeVideoId?: string;
   onCompleteTheory: () => void;
   onStartQuiz: () => void;
 }
@@ -68,10 +71,12 @@ export const TheoryReader: React.FC<TheoryReaderProps> = ({
   lesson,
   courseId,
   lessonId,
+  youtubeVideoId,
   onCompleteTheory,
   onStartQuiz,
 }) => {
   const isRead = Boolean(lesson.modeProgress?.theory?.completed);
+  const { iframeRef, embedUrl, playSegment } = useYoutubeSegmentPlayer(youtubeVideoId);
 
   const handleMarkAsRead = () => {
     updateProgress(courseId, lessonId, 'theory', true).catch((err) =>
@@ -97,6 +102,22 @@ export const TheoryReader: React.FC<TheoryReaderProps> = ({
           Lesson {lesson.lessonIndex}
         </span>
       </div>
+
+      {/* Hidden player — only needs to exist so the vocabulary "listen" buttons can seek it,
+          no need to be visible for Theory (unlike Shadowing where the video is the focus). */}
+      {embedUrl && (
+        <iframe
+          ref={iframeRef}
+          src={embedUrl}
+          title="YouTube Video Player"
+          className="hidden"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        />
+      )}
+
+      {/* Vocabulary — fixed React table (not LLM-authored Markdown) so every lesson shows
+          the exact same layout, with a play button seeking the real video moment. */}
+      <VocabularyTable items={lesson.vocabulary || []} onPlay={playSegment} />
 
       {/* Main Lesson Markdown Content */}
       <div className="prose prose-slate dark:prose-invert max-w-none text-sm sm:text-base leading-relaxed">

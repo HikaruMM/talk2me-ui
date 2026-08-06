@@ -272,6 +272,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                 lesson={currentLesson}
                 courseId={course.id}
                 lessonId={currentLesson.id}
+                youtubeVideoId={course.youtubeVideoId}
                 onCompleteTheory={() => setActiveMode('quiz')}
                 onStartQuiz={() => setActiveMode('quiz')}
               />
