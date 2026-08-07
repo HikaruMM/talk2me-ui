@@ -280,7 +280,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
         <div
           className={
             isFullscreen
-              ? 'fixed inset-0 z-[100] bg-[#090D16] text-white p-4 sm:p-8 flex flex-col justify-between w-screen h-screen min-h-screen overflow-hidden animate-in fade-in duration-200'
+              ? 'fixed inset-0 z-[100] bg-[var(--bg-base)] text-[var(--text-primary)] p-6 sm:p-10 lg:p-14 flex flex-col justify-between w-screen h-screen min-h-screen overflow-hidden animate-in fade-in duration-200'
               : 'space-y-6'
           }
         >
@@ -295,22 +295,10 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
             {/* Top Status Header Counter Bar */}
             <div className={`flex items-center justify-between gap-2 sm:gap-4 ${
               isFullscreen
-                ? 'p-3 rounded-2xl bg-[#141C2E] border border-slate-800 shadow-md'
+                ? 'p-3 rounded-2xl bg-[var(--bg-surface-2)] border border-[var(--border)] shadow-md'
                 : 'p-1'
             }`}>
               <div className="flex items-center gap-3">
-                {isFullscreen && (
-                  <button
-                    type="button"
-                    onClick={toggleFullscreen}
-                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md active:scale-95 shrink-0"
-                    title="Thoát toàn màn hình (Esc)"
-                  >
-                    <Minimize2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Thoát toàn màn hình</span>
-                    <kbd className="px-1.5 py-0.5 rounded bg-blue-700 text-[10px] font-mono">Esc</kbd>
-                  </button>
-                )}
 
                 <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 font-extrabold text-xs">
                   <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
@@ -353,7 +341,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                 {/* FRONT FACE */}
                 <div className={`absolute inset-0 [backface-visibility:hidden] rounded-3xl ${
                   isFullscreen
-                    ? 'bg-[#151D30] border border-slate-700/80 shadow-2xl p-6 sm:p-10'
+                    ? 'bg-[var(--bg-surface)] border border-[var(--border)] shadow-2xl p-6 sm:p-10'
                     : 'bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-5 sm:p-8'
                 } flex flex-col justify-between transition-colors hover:border-blue-500/50`}>
                   <div className="flex items-center justify-between text-xs">
@@ -422,7 +410,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                   </div>
 
                   <div className={`p-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 ${
-                    isFullscreen ? 'bg-slate-900/60 text-slate-400' : 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400'
+                    isFullscreen ? 'bg-[var(--bg-surface-2)]/60 text-[var(--text-muted)]' : 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400'
                   }`}>
                     <Keyboard className="w-4 h-4 hidden sm:inline" />
                     <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 shadow-xs font-mono text-[11px]">Space</kbd>)</span></span>
@@ -432,7 +420,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                 {/* BACK FACE */}
                 <div className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-3xl ${
                   isFullscreen
-                    ? 'bg-[#151D30] border border-slate-700/80 shadow-2xl p-6 sm:p-10'
+                    ? 'bg-[var(--bg-surface)] border border-[var(--border)] shadow-2xl p-6 sm:p-10'
                     : 'bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-5 sm:p-8'
                 } flex flex-col justify-between transition-colors hover:border-blue-500/50`}>
                   <div className="flex items-center justify-between text-xs">
@@ -517,8 +505,8 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
               </div>
             </div>
 
-            {/* Video Evidence Button */}
-            {currentCard.sourceVideoId && (
+            {/* Video Evidence Button — hidden in fullscreen to save space */}
+            {!isFullscreen && currentCard.sourceVideoId && (
               <div className="flex flex-col items-center gap-3">
                 <button
                   type="button"
