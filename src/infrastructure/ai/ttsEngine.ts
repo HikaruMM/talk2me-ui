@@ -1,10 +1,25 @@
 import type { FromWorkerMessage, ToWorkerMessage } from './ttsEngine.worker';
+import { createDownloadStore } from './downloadStore';
 
 // English only — Kokoro has no Vietnamese voice. Callers must only pass English text (see
 // call sites: flashcard front/term text, Writing/Speaking prompts, pronunciation practice —
 // never flashcard back/definition text, which is often Vietnamese and stays on the browser's
 // native speechSynthesis).
 const DOWNLOADED_AT_KEY = 'talk2me_tts_downloaded_at';
+
+// Lets any mounted component (e.g. ResourceManagerSection, even a fresh instance after
+// the one that started the download was unmounted by navigating away) see the true,
+// live download progress — see downloadStore.ts.
+export const ttsDownloadStore = createDownloadStore({
+  status: (() => {
+    try {
+      return localStorage.getItem(DOWNLOADED_AT_KEY) ? 'downloaded' : 'idle';
+    } catch {
+      return 'idle';
+    }
+  })(),
+  progress: 0,
+});
 
 // Actual model loading + KokoroTTS.generate() runs in ttsEngine.worker.ts, off the main
 // thread — long synthesis calls no longer block UI rendering/input (previously long text
@@ -84,6 +99,8 @@ export function getTtsDownloadedAt(): string | null {
 export async function preloadTtsModel(onProgress?: (percent: number) => void): Promise<void> {
   if (loadingPromise !== null) return loadingPromise;
 
+  ttsDownloadStore.setState({ status: 'downloading', progress: 0 });
+
   loadingPromise = new Promise<void>((resolve, reject) => {
     const worker = getWorker();
 
@@ -91,6 +108,7 @@ export async function preloadTtsModel(onProgress?: (percent: number) => void): P
       const msg = event.data;
       if (msg.type === 'progress') {
         onProgress?.(msg.percent);
+        ttsDownloadStore.setState({ status: 'downloading', progress: msg.percent });
       } else if (msg.type === 'preload-done') {
         worker.removeEventListener('message', onMessage);
         try {
@@ -99,9 +117,11 @@ export async function preloadTtsModel(onProgress?: (percent: number) => void): P
           // localStorage unavailable (private mode etc.) — not fatal, just loses the
           // "already downloaded" UI hint; the model is still cached by the worker/browser.
         }
+        ttsDownloadStore.setState({ status: 'downloaded', progress: 100 });
         resolve();
       } else if (msg.type === 'preload-error') {
         worker.removeEventListener('message', onMessage);
+        ttsDownloadStore.setState({ status: 'error', progress: 0, error: msg.message });
         reject(new Error(msg.message));
       }
     };
@@ -155,4 +175,5 @@ export async function deleteTtsModel(): Promise<void> {
   } catch {
     // ignore — best-effort only
   }
+  ttsDownloadStore.setState({ status: 'idle', progress: 0 });
 }

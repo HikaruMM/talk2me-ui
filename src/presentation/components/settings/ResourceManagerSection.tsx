@@ -15,6 +15,7 @@ import {
   getModelResourceStatus,
   downloadModel,
   deleteModel,
+  pronunciationDownloadStore,
   ModelResourceStatus
 } from '../../../infrastructure/ai/resourceManager';
 import {
@@ -22,7 +23,9 @@ import {
   getTtsDownloadedAt,
   preloadTtsModel,
   deleteTtsModel,
+  ttsDownloadStore,
 } from '../../../infrastructure/ai/ttsEngine';
+import { useDownloadStore } from '../../hooks/useDownloadStore';
 
 interface ResourceManagerSectionProps {
   /** Set when the user arrived here by accepting a "download this AI model?" prompt
@@ -33,19 +36,27 @@ interface ResourceManagerSectionProps {
 
 export const ResourceManagerSection: React.FC<ResourceManagerSectionProps> = ({ autoDownload }) => {
   const [status, setStatus] = useState<ModelResourceStatus | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Read from a module-level store instead of local state — a background download keeps
+  // running (and reporting real progress) even if this component unmounts (e.g. user
+  // navigates away from Settings mid-download) and remounts later; local state would have
+  // reset to 0%/not-downloading on remount and looked like the download was lost.
+  const pronunciationDl = useDownloadStore(pronunciationDownloadStore);
+  const isDownloading = pronunciationDl.status === 'downloading';
+  const downloadProgress = pronunciationDl.progress;
 
   // Kokoro TTS — independent state, own model, own cache (Transformers.js's own Cache
   // Storage entry, not the wav2vec2 zip-download flow above).
   const [ttsDownloaded, setTtsDownloaded] = useState(false);
   const [ttsDownloadedAt, setTtsDownloadedAt] = useState<string | null>(null);
-  const [isTtsDownloading, setIsTtsDownloading] = useState(false);
-  const [ttsDownloadProgress, setTtsDownloadProgress] = useState(0);
   const [isTtsDeleting, setIsTtsDeleting] = useState(false);
   const [ttsMessage, setTtsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const ttsDl = useDownloadStore(ttsDownloadStore);
+  const isTtsDownloading = ttsDl.status === 'downloading';
+  const ttsDownloadProgress = ttsDl.progress;
 
   const loadStatus = async () => {
     try {
@@ -67,14 +78,10 @@ export const ResourceManagerSection: React.FC<ResourceManagerSectionProps> = ({ 
   }, []);
 
   const handleDownload = async () => {
-    setIsDownloading(true);
-    setDownloadProgress(0);
     setMessage(null);
 
     try {
-      await downloadModel((percent) => {
-        setDownloadProgress(percent);
-      });
+      await downloadModel();
       await loadStatus();
       setMessage({
         type: 'success',
@@ -86,8 +93,6 @@ export const ResourceManagerSection: React.FC<ResourceManagerSectionProps> = ({ 
         type: 'error',
         text: err.message || 'Tải model thất bại. Vui lòng kiểm tra lại kết nối mạng.',
       });
-    } finally {
-      setIsDownloading(false);
     }
   };
 
@@ -117,12 +122,10 @@ export const ResourceManagerSection: React.FC<ResourceManagerSectionProps> = ({ 
   };
 
   const handleTtsDownload = async () => {
-    setIsTtsDownloading(true);
-    setTtsDownloadProgress(0);
     setTtsMessage(null);
 
     try {
-      await preloadTtsModel((percent) => setTtsDownloadProgress(percent));
+      await preloadTtsModel();
       loadTtsStatus();
       setTtsMessage({
         type: 'success',
@@ -134,8 +137,6 @@ export const ResourceManagerSection: React.FC<ResourceManagerSectionProps> = ({ 
         type: 'error',
         text: err.message || 'Tải model thất bại. Vui lòng kiểm tra lại kết nối mạng.',
       });
-    } finally {
-      setIsTtsDownloading(false);
     }
   };
 
