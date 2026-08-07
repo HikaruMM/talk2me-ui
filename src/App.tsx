@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Course, UserProfile } from './core/entities';
 import { INITIAL_CATEGORIES } from './infrastructure/data/mockCourses';
 import { 
@@ -29,11 +29,69 @@ import {
   CoursesPage,
   NotificationsPage
 } from './presentation/pages';
+function CourseDetailRouteWrapper({
+  onOpenCreateModal,
+  onDeleteCourse,
+}: {
+  onOpenCreateModal?: (url?: string) => void;
+  onDeleteCourse?: (target: Course | string) => void;
+}) {
+  const { courseId } = useParams<{ courseId: string }>();
+  const navigate = useNavigate();
+  const [course, setCourse] = useState<Course | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!courseId) {
+      // Nothing to load — bounce back instead of a spinner stuck forever.
+      navigate('/courses', { replace: true });
+      return;
+    }
+    // Always fetch the FULL detail (with lessons) — the courses-list endpoints only ever
+    // return summaries, so short-circuiting with a locally-cached summary here would render
+    // a "course" with no lessons.
+    setIsLoading(true);
+    setCourse(null);
+    getCourseDetail(courseId)
+      .then((res) => setCourse(res))
+      .catch(() => setCourse(null))
+      .finally(() => setIsLoading(false));
+  }, [courseId, navigate]);
+
+  if (isLoading) {
+    return <PageLoadingSpinner message="Đang tải thông tin khóa học..." />;
+  }
+
+  if (!course) {
+    return (
+      <div className="max-w-xl mx-auto py-16 text-center space-y-4">
+        <p className="text-lg font-bold text-[#1B1F2E] dark:text-white font-display">Không tìm thấy khóa học này</p>
+        <button
+          onClick={() => navigate('/courses')}
+          className="px-6 py-2.5 rounded-2xl bg-[#2E68FF] text-white font-bold text-xs shadow-md"
+        >
+          Quay lại danh sách khóa học
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <CourseDetailPage
+      course={course}
+      onBack={() => navigate(-1)}
+      onOpenCreateModal={onOpenCreateModal}
+      onDeleteCourse={(id) => {
+        Promise.resolve(onDeleteCourse?.(id)).then(() => navigate('/courses'));
+      }}
+    />
+  );
+}
 
 function AppContent() {
   const { darkMode, setDarkMode } = useTheme();
   const { user, login, logout } = useAuth();
-  const { publicCourses, userCourses, categories, createCategory } = useCourses();
+  const { publicCourses, categories, createCategory } = useCourses();
   const navigate = useNavigate();
   const deleteCourseMutation = useDeleteCourseMutation();
 
@@ -53,10 +111,30 @@ function AppContent() {
   const [authRedirectReason, setAuthRedirectReason] = useState<string>('');
   const [isAuthPopupOpen, setIsAuthPopupOpen] = useState<boolean>(false);
 
-  // Filtering & course detail active state
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeCourse, setActiveCourse] = useState<Course | null>(null);
+  // Category/search filters for Home & Courses — read directly from the URL every render
+  // (no local useState mirror) so browser back/forward and manual URL edits always reflect
+  // immediately, instead of only syncing once on mount.
+  const [filterParams, setFilterParams] = useSearchParams();
+  const selectedCategory = filterParams.get('cat') || 'all';
+  const searchQuery = filterParams.get('q') || '';
+
+  const handleSelectCategory = (cat: string) => {
+    setFilterParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (cat === 'all') next.delete('cat');
+      else next.set('cat', cat);
+      return next;
+    }, { replace: true });
+  };
+
+  const handleSearchChange = (q: string) => {
+    setFilterParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (q) next.set('q', q);
+      else next.delete('q');
+      return next;
+    }, { replace: true });
+  };
 
   // Modal create course
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -80,9 +158,6 @@ function AppContent() {
     const courseId = typeof target === 'string' ? target : target.id;
     try {
       await deleteCourseMutation.mutateAsync(courseId);
-      if (activeCourse?.id === courseId) {
-        setActiveCourse(null);
-      }
       setToastMessage('Đã xóa khóa học thành công.');
     } catch (err: any) {
       console.error('Failed to delete course:', err);
@@ -152,26 +227,14 @@ function AppContent() {
     setToastMessage('Đang tạo khoá học... Kết quả sẽ xuất hiện trong Khoá học của bạn.');
   };
 
-  const handleSelectMyCourse = async (course: Course) => {
-    if (course.isCustomGenerated) {
-      try {
-        const full = await getCourseDetail(course.id);
-        setActiveCourse(full);
-      } catch (err) {
-        console.error('Failed to load course detail:', err);
-        return;
-      }
-    } else {
-      setActiveCourse(course);
-    }
-    setCurrentTab('course-detail');
+  const handleSelectMyCourse = (course: Course) => {
+    navigate(`/courses/${course.id}`);
   };
 
   const handleTabChange = (tab: string) => {
     if (tab === 'progress' || tab === 'settings') {
       requireAuth(
         () => {
-          setActiveCourse(null);
           setCurrentTab(tab);
           navigate(tab === 'progress' ? '/progress' : '/settings');
         },
@@ -181,7 +244,6 @@ function AppContent() {
           : 'Vui lòng đăng nhập để quản lý API Key và thông tin cấu hình tài khoản.'
       );
     } else {
-      if (tab !== 'course-detail') setActiveCourse(null);
       setCurrentTab(tab);
     }
   };
@@ -214,69 +276,52 @@ function AppContent() {
       <main className="flex-1 pb-20 xl:pb-0">
         <Routes>
             {/* HOME PAGE ROUTE (Displays Platform Public Demo Courses) */}
-            <Route 
-              path="/" 
+            <Route
+              path="/"
               element={
-                activeCourse && currentTab === 'home-detail' ? (
-                  <CourseDetailPage
-                    course={activeCourse}
-                    onBack={() => {
-                      setActiveCourse(null);
-                      setCurrentTab('home');
-                    }}
-                    onOpenCreateModal={handleOpenCreateModal}
-                    onDeleteCourse={handleDeleteCourse}
+                <div className="py-8">
+                  <HomePage
+                    courses={filteredPublicCourses}
+                    categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
+                    selectedCategory={selectedCategory}
+                    onSelectCategory={handleSelectCategory}
+                    searchQuery={searchQuery}
+                    onSearchChange={handleSearchChange}
+                    onSelectCourse={(courseId) => navigate(`/courses/${courseId}`)}
+                    onCreateCourseClick={handleOpenCreateModal}
                   />
-                ) : (
-                  <div className="py-8">
-                    <HomePage
-                      courses={filteredPublicCourses}
-                      categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
-                      selectedCategory={selectedCategory}
-                      onSelectCategory={setSelectedCategory}
-                      searchQuery={searchQuery}
-                      onSearchChange={setSearchQuery}
-                      onSelectCourse={(courseId) => {
-                        const targetCourse = publicCourses.find((c) => c.id === courseId) || publicCourses[0];
-                        setActiveCourse(targetCourse);
-                        setCurrentTab('home-detail');
-                      }}
-                      onCreateCourseClick={handleOpenCreateModal}
-                    />
-                  </div>
-                )
-              } 
+                </div>
+              }
             />
 
             {/* COURSES LIBRARY ROUTE (Displays User Created / Saved Courses) */}
-            <Route 
-              path="/courses" 
+            <Route
+              path="/courses"
               element={
-                activeCourse && currentTab === 'course-detail' ? (
-                  <CourseDetailPage
-                    course={activeCourse}
-                    onBack={() => {
-                      setActiveCourse(null);
-                      setCurrentTab('courses');
-                    }}
-                    onOpenCreateModal={handleOpenCreateModal}
-                    onDeleteCourse={handleDeleteCourse}
-                  />
-                ) : (
-                  <CoursesPage
-                    courses={myCourses}
-                    categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
-                    selectedCategory={selectedCategory}
-                    onSelectCategory={setSelectedCategory}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    onSelectCourse={handleSelectMyCourse}
-                    onCreateCourseClick={handleOpenCreateModal}
-                    onDeleteCourse={handleDeleteCourse}
-                    isLoading={isCoursesLoading}
-                  />
-                )
-              } 
+                <CoursesPage
+                  courses={myCourses}
+                  categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
+                  selectedCategory={selectedCategory}
+                  onSelectCategory={handleSelectCategory}
+                  searchQuery={searchQuery}
+                  onSearchChange={handleSearchChange}
+                  onSelectCourse={handleSelectMyCourse}
+                  onCreateCourseClick={handleOpenCreateModal}
+                  onDeleteCourse={handleDeleteCourse}
+                  isLoading={isCoursesLoading}
+                />
+              }
+            />
+
+            {/* DYNAMIC COURSE DETAIL ROUTE (URL DEEP-LINKING BY ID) */}
+            <Route
+              path="/courses/:courseId"
+              element={
+                <CourseDetailRouteWrapper
+                  onOpenCreateModal={handleOpenCreateModal}
+                  onDeleteCourse={handleDeleteCourse}
+                />
+              }
             />
 
           {/* FLASHCARDS ROUTE */}
@@ -290,21 +335,14 @@ function AppContent() {
           <Route path="/analytics" element={<AnalyticsPage />} />
 
           {/* COMMUNITY ROUTE */}
-          <Route 
-            path="/community" 
+          <Route
+            path="/community"
             element={
               <CommunityPage
-                onSelectCourse={(courseId) => {
-                  const allCourses = [...userCourses, ...publicCourses];
-                  const targetCourse = allCourses.find((c) => c.id === courseId) || allCourses[0];
-                  if (targetCourse) {
-                    setActiveCourse(targetCourse);
-                    navigate('/courses');
-                  }
-                }}
+                onSelectCourse={(courseId) => navigate(`/courses/${courseId}`)}
                 onOpenFlashcards={() => navigate('/flashcards')}
               />
-            } 
+            }
           />
 
           {/* SETTINGS ROUTE */}

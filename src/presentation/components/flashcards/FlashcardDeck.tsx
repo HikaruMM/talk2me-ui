@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Folder,
   FolderPlus,
@@ -34,6 +35,7 @@ interface FlashcardDeckProps {
 
 export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: deckData, isLoading, error: deckError } = useFlashcardDeckQuery();
   const loadError = deckError ? (deckError instanceof Error ? deckError.message : 'Không tải được flashcard') : null;
   const deleteSetMutation = useDeleteFlashcardSetMutation();
@@ -59,10 +61,48 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
 
+  // Deep-link URL searchParams sync on mount / URL change
+  useEffect(() => {
+    if (isLoading || studySets.length === 0) return;
+
+    const urlSetId = searchParams.get('set');
+    const urlFolderId = searchParams.get('folder');
+    const urlAction = searchParams.get('action');
+    const urlTab = searchParams.get('tab');
+
+    if (urlSetId) {
+      const foundSet = studySets.find((s) => s.id === urlSetId);
+      if (foundSet) {
+        if (urlAction === 'edit') {
+          setEditingSet(foundSet);
+          setViewState('editor');
+        } else if (!selectedSet || selectedSet.id !== urlSetId) {
+          openSet(foundSet, false);
+        }
+      }
+    } else if (urlFolderId) {
+      const foundFolder = folders.find((f) => f.id === urlFolderId);
+      if (foundFolder && (!selectedFolder || selectedFolder.id !== urlFolderId)) {
+        setSelectedFolder(foundFolder);
+        setViewState('folder-detail');
+      }
+    } else if (urlAction === 'create') {
+      setEditingSet(null);
+      setViewState('editor');
+    }
+
+    if ((urlTab === 'sets' || urlTab === 'folders') && urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+  }, [isLoading, studySets.length, searchParams.get('set'), searchParams.get('folder'), searchParams.get('action'), searchParams.get('tab')]);
+
   // Set summaries returned by the list endpoints don't include each card (that would be
   // wasteful for a dashboard grid) — fetch the full card list lazily the moment the user
   // actually opens a set to study/edit it.
-  const openSet = async (set: FlashcardSet) => {
+  const openSet = async (set: FlashcardSet, updateUrl: boolean = true) => {
+    if (updateUrl) {
+      setSearchParams({ set: set.id }, { replace: true });
+    }
     if (set.cards.length === 0 && (set.cardsCount ?? 0) > 0) {
       try {
         const cards = await getFlashcardsInSet(set.id);
@@ -76,6 +116,50 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
       setSelectedSet(set);
     }
     setViewState('player');
+  };
+
+  const openFolder = (folder: FlashcardFolder, updateUrl: boolean = true) => {
+    if (updateUrl) {
+      setSearchParams({ folder: folder.id }, { replace: true });
+    }
+    setSelectedFolder(folder);
+    setViewState('folder-detail');
+  };
+
+  const openCreateEditor = (updateUrl: boolean = true) => {
+    if (updateUrl) {
+      setSearchParams({ action: 'create' }, { replace: true });
+    }
+    setEditingSet(null);
+    setViewState('editor');
+  };
+
+  const goToDashboard = () => {
+    setSearchParams({}, { replace: true });
+    setSelectedFolder(null);
+    setViewState('dashboard');
+  };
+
+  const selectTab = (tab: 'sets' | 'folders') => {
+    setActiveTab(tab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    }, { replace: true });
+  };
+
+  const updateSearchQuery = (query: string) => {
+    setSearchQuery(query);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (query) {
+        next.set('q', query);
+      } else {
+        next.delete('q');
+      }
+      return next;
+    }, { replace: true });
   };
 
   const handleSaveSet = (newSet: FlashcardSet, practiceNow: boolean = false) => {
@@ -128,7 +212,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
       setLocalStudySets((prev) => (prev || studySets).filter((s) => s.id !== setId));
       if (selectedSet?.id === setId) {
         setSelectedSet(null);
-        setViewState('dashboard');
+        goToDashboard();
       }
     }
   };
@@ -139,8 +223,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
       deleteFolderMutation.mutate(folderId);
       setLocalFolders((prev) => (prev || folders).filter((f) => f.id !== folderId));
       if (selectedFolder?.id === folderId) {
-        setSelectedFolder(null);
-        setViewState('dashboard');
+        goToDashboard();
       }
     }
   };
@@ -165,7 +248,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
         initialSet={editingSet}
         folders={folders}
         onSaveSet={handleSaveSet}
-        onCancel={() => setViewState('dashboard')}
+        onCancel={goToDashboard}
       />
     );
   }
@@ -174,7 +257,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
     return (
       <FlashcardPlayer
         set={selectedSet}
-        onBack={() => setViewState('dashboard')}
+        onBack={goToDashboard}
         onEditSet={() => {
           setEditingSet(selectedSet);
           setViewState('editor');
@@ -192,10 +275,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
         <div className="flex flex-wrap items-center justify-between gap-4 p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-sm">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => {
-                setSelectedFolder(null);
-                setViewState('dashboard');
-              }}
+              onClick={goToDashboard}
               className="px-3.5 py-2 rounded-2xl bg-white dark:bg-[#1E293B] hover:bg-slate-100 dark:hover:bg-slate-800 text-[#1B1F2E] dark:text-white font-extrabold text-xs flex items-center gap-2 transition-all duration-200 border border-[#E4E8F0] dark:border-[#334155] shadow-xs active:scale-95 cursor-pointer shrink-0 group"
               title="Quay lại"
             >
@@ -229,10 +309,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
             </button>
 
             <button
-              onClick={() => {
-                setEditingSet(null);
-                setViewState('editor');
-              }}
+              onClick={() => openCreateEditor()}
               className="px-5 py-2.5 rounded-xl bg-[#2E68FF] text-white font-extrabold text-xs shadow-md hover:bg-blue-600 transition-transform active:scale-95 flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
@@ -323,7 +400,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => updateSearchQuery(e.target.value)}
               placeholder="Tìm kiếm học phần..."
               className="w-full pl-9 pr-4 py-2.5 rounded-full bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-[#2E68FF] shadow-xs"
             />
@@ -348,8 +425,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
                   <button
                     onClick={() => {
                       setIsCreateMenuOpen(false);
-                      setEditingSet(null);
-                      setViewState('editor');
+                      openCreateEditor();
                     }}
                     className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-800 dark:text-slate-100 font-bold text-xs transition-colors"
                   >
@@ -471,10 +547,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
           {folders.map((folder) => (
             <div
               key={folder.id}
-              onClick={() => {
-                setSelectedFolder(folder);
-                setViewState('folder-detail');
-              }}
+              onClick={() => openFolder(folder)}
               className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-2xs hover:shadow-md hover:border-amber-500 cursor-pointer transition-all flex items-center gap-3 group"
             >
               <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -495,7 +568,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
 
       <div className="pt-6 border-t border-[#E4E8F0] dark:border-[#334155] flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         <button
-          onClick={() => setActiveTab('sets')}
+          onClick={() => selectTab('sets')}
           className={`px-5 py-2 rounded-full font-bold text-xs whitespace-nowrap transition-all ${
             activeTab === 'sets'
               ? 'bg-[#2E68FF] text-white shadow-xs'
@@ -506,7 +579,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('folders')}
+          onClick={() => selectTab('folders')}
           className={`px-5 py-2 rounded-full font-bold text-xs whitespace-nowrap transition-all ${
             activeTab === 'folders'
               ? 'bg-[#2E68FF] text-white shadow-xs'
@@ -529,10 +602,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Chưa tìm thấy học phần nào</h3>
               <p className="text-xs text-slate-500">Tạo một học phần mới để bắt đầu ôn luyện bằng Flashcard.</p>
               <button
-                onClick={() => {
-                  setEditingSet(null);
-                  setViewState('editor');
-                }}
+                onClick={() => openCreateEditor()}
                 className="px-6 py-2.5 rounded-xl bg-[#2E68FF] text-white font-bold text-xs"
               >
                 Tạo học phần ngay
@@ -620,10 +690,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
                 return (
                   <div
                     key={folder.id}
-                    onClick={() => {
-                      setSelectedFolder(folder);
-                      setViewState('folder-detail');
-                    }}
+                    onClick={() => openFolder(folder)}
                     className="p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs hover:shadow-xl hover:border-blue-500 cursor-pointer transition-all space-y-4 flex flex-col justify-between group"
                   >
                     <div className="space-y-3">

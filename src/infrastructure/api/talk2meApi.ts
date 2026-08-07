@@ -1,6 +1,6 @@
 import { getStoredConfig } from './gemini';
 import { API_BASE_URL } from '../config';
-import type { Course, WritingEvaluation, SpeakingEvaluation, Flashcard, FlashcardSet, FlashcardFolder } from '../../core/entities';
+import type { Course, WritingEvaluation, SpeakingEvaluation, Flashcard, FlashcardSet, FlashcardFolder, UserProfile } from '../../core/entities';
 
 const API_BASE = API_BASE_URL;
 const JWT_STORAGE_KEY = 'talk2me_jwt_token';
@@ -40,7 +40,34 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+let isRefreshing = false;
+
+export async function refreshTokenApi(): Promise<string | null> {
+  const token = localStorage.getItem(JWT_STORAGE_KEY);
+  if (!token) return null;
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.access_token) {
+      localStorage.setItem(JWT_STORAGE_KEY, data.access_token);
+      return data.access_token;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function apiFetch<T>(path: string, options: RequestInit = {}, isRetry: boolean = false): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -49,6 +76,44 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
       ...(options.headers || {}),
     },
   });
+
+  if (res.status === 401) {
+    // If it's an auth endpoint (login/register/refresh) or already retried once
+    if (path.startsWith('/auth/login') || path.startsWith('/auth/register') || path.startsWith('/auth/refresh') || isRetry) {
+      localStorage.removeItem(JWT_STORAGE_KEY);
+      localStorage.removeItem('talk2me_user_profile');
+      window.dispatchEvent(
+        new CustomEvent('talk2me_unauthorized', {
+          detail: 'Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.',
+        })
+      );
+      const errorBody = await res.json().catch(() => ({}));
+      throw new Error(errorBody.detail || 'Phiên đăng nhập đã hết hạn.');
+    }
+
+    // Attempt token refresh once
+    if (!isRefreshing) {
+      isRefreshing = true;
+      const newToken = await refreshTokenApi();
+      isRefreshing = false;
+
+      if (newToken) {
+        // Retry original request with refreshed token
+        return apiFetch<T>(path, options, true);
+      }
+    }
+
+    // Refresh failed -> logout & dispatch event
+    localStorage.removeItem(JWT_STORAGE_KEY);
+    localStorage.removeItem('talk2me_user_profile');
+    window.dispatchEvent(
+      new CustomEvent('talk2me_unauthorized', {
+        detail: 'Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.',
+      })
+    );
+    const errorBody = await res.json().catch(() => ({}));
+    throw new Error(errorBody.detail || 'Phiên đăng nhập đã hết hạn.');
+  }
 
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
@@ -159,6 +224,10 @@ export function createFlashcardFolder(data: {
 
 export function deleteFlashcardFolder(folderId: string): Promise<{ ok: boolean }> {
   return apiFetch(`/flashcards/folders/${folderId}`, { method: 'DELETE' });
+}
+
+export function getAuthUser(): Promise<UserProfile> {
+  return apiFetch('/auth/me');
 }
 
 export function getFlashcardSets(): Promise<FlashcardSetSummary[]> {

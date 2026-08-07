@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../../core/entities';
 import { LocalAuthRepository } from '../../infrastructure/storage/LocalAuthRepository';
+import { getAuthUser } from '../../infrastructure/api/talk2meApi';
 
 const authRepo = new LocalAuthRepository();
 
@@ -44,6 +45,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       authRepo.removeUser();
     }
   }, [user]);
+
+  // Global listener for 401 Unauthorized / Token Expiration events
+  useEffect(() => {
+    const handleUnauthorized = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const reason = customEvent.detail || 'Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.';
+      setUser(null);
+      authRepo.removeUser();
+      localStorage.removeItem('talk2me_jwt_token');
+      openAuthPopup('login', reason);
+    };
+
+    window.addEventListener('talk2me_unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('talk2me_unauthorized', handleUnauthorized);
+  }, []);
+
+  // Verify active JWT token session with backend on app load
+  useEffect(() => {
+    const token = localStorage.getItem('talk2me_jwt_token');
+    if (token) {
+      getAuthUser()
+        .then((updatedProfile) => {
+          setUser(updatedProfile);
+        })
+        .catch((err) => {
+          console.warn('[Session Verification] Token expired or invalid:', err);
+          setUser(null);
+          authRepo.removeUser();
+          localStorage.removeItem('talk2me_jwt_token');
+        });
+    }
+  }, []);
 
   const requireAuth = (
     action: () => void,

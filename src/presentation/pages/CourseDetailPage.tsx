@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Course } from '../../core/entities';
 import { 
   TheoryReader, 
@@ -38,8 +39,38 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
   onDeleteCourse,
 }) => {
   const { user } = useAuth();
-  const [activeLessonIndex, setActiveLessonIndex] = useState(0);
-  const [activeMode, setActiveMode] = useState<'theory' | 'quiz' | 'dictation' | 'shadowing' | 'writing' | 'speaking'>('theory');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const urlLesson = searchParams.get('lesson');
+  const urlMode = searchParams.get('mode') as any;
+
+  const [activeLessonIndex, setActiveLessonIndexState] = useState<number>(() => {
+    const parsed = urlLesson ? parseInt(urlLesson, 10) : 0;
+    return !isNaN(parsed) && parsed >= 0 ? parsed : 0;
+  });
+
+  const [activeMode, setActiveModeState] = useState<'theory' | 'quiz' | 'dictation' | 'shadowing' | 'writing' | 'speaking'>(() => {
+    const validModes = ['theory', 'quiz', 'dictation', 'shadowing', 'writing', 'speaking'];
+    return validModes.includes(urlMode) ? urlMode : 'theory';
+  });
+
+  const setActiveLessonIndex = (index: number) => {
+    setActiveLessonIndexState(index);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('lesson', index.toString());
+      return next;
+    }, { replace: true });
+  };
+
+  const setActiveMode = (mode: 'theory' | 'quiz' | 'dictation' | 'shadowing' | 'writing' | 'speaking') => {
+    setActiveModeState(mode);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('mode', mode);
+      return next;
+    }, { replace: true });
+  };
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showVideo, setShowVideo] = useState(true);
   const [isLessonsExpanded, setIsLessonsExpanded] = useState(false);
