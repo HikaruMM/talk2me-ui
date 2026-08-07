@@ -280,36 +280,57 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
         <div
           className={
             isFullscreen
-              ? 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md text-slate-900 dark:text-white p-3 sm:p-6 overflow-y-auto flex flex-col justify-center items-center animate-in fade-in duration-200'
+              ? 'fixed inset-0 z-[100] bg-[#090D16] text-white p-4 sm:p-8 flex flex-col justify-between w-screen h-screen min-h-screen overflow-hidden animate-in fade-in duration-200'
               : 'space-y-6'
           }
         >
           {/* Entire Flashcard Player Cluster Container */}
           <div
-            className={`w-full max-w-4xl mx-auto rounded-3xl transition-all duration-300 ${
+            className={`w-full mx-auto transition-all duration-300 ${
               isFullscreen
-                ? 'bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-8 space-y-4 sm:space-y-6 max-h-[96vh] flex flex-col justify-between overflow-y-auto'
-                : 'space-y-6'
+                ? 'max-w-6xl h-full flex flex-col justify-between space-y-4'
+                : 'max-w-4xl space-y-6'
             }`}
           >
             {/* Top Status Header Counter Bar */}
-            <div className="flex items-center justify-between gap-2 sm:gap-4 p-1">
-              <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
-                  {learningIds.length}
-                </span>
-                <span>Đang học</span>
+            <div className={`flex items-center justify-between gap-2 sm:gap-4 ${
+              isFullscreen
+                ? 'p-3 rounded-2xl bg-[#141C2E] border border-slate-800 shadow-md'
+                : 'p-1'
+            }`}>
+              <div className="flex items-center gap-3">
+                {isFullscreen && (
+                  <button
+                    type="button"
+                    onClick={toggleFullscreen}
+                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md active:scale-95 shrink-0"
+                    title="Thoát toàn màn hình (Esc)"
+                  >
+                    <Minimize2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Thoát toàn màn hình</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-blue-700 text-[10px] font-mono">Esc</kbd>
+                  </button>
+                )}
+
+                <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 font-extrabold text-xs">
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
+                    {learningIds.length}
+                  </span>
+                  <span>Đang học</span>
+                </div>
               </div>
 
-              <div className="text-center font-extrabold text-xs sm:text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1.5 sm:gap-2">
-                <span className="text-slate-900 dark:text-white font-black">{currentIndex + 1} / {set.cards.length}</span>
+              <div className="text-center font-extrabold text-xs sm:text-sm text-slate-400 flex items-center gap-1.5 sm:gap-2">
+                <span className={isFullscreen ? 'text-white font-black text-sm sm:text-base' : 'text-slate-900 dark:text-white font-black'}>
+                  {currentIndex + 1} / {set.cards.length}
+                </span>
                 <span>•</span>
-                <span className="truncate max-w-[120px] sm:max-w-[280px] text-slate-700 dark:text-slate-300">
+                <span className={`truncate max-w-[120px] sm:max-w-[280px] ${isFullscreen ? 'text-slate-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
                   {set.title}
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+              <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 font-extrabold text-xs">
                 <span>Đã biết</span>
                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px]">
                   {knownIds.length}
@@ -318,19 +339,23 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
             </div>
 
             {/* 3D Card Flip Outer Container */}
-            <div className="[perspective:1000px] w-full flex-1 flex items-center justify-center my-auto py-2">
+            <div className="[perspective:1200px] w-full flex-1 flex items-center justify-center my-auto py-2">
               <div
                 onClick={() => setIsFlipped(!isFlipped)}
-                className={`relative w-full max-w-2xl sm:max-w-3xl ${
+                className={`relative w-full ${
                   isFullscreen
-                    ? 'h-[48vh] sm:h-[54vh] min-h-[300px] sm:min-h-[380px] max-h-[540px]'
-                    : 'min-h-[340px] sm:min-h-[440px]'
+                    ? 'max-w-4xl h-[62vh] sm:h-[66vh] min-h-[380px] max-h-[640px]'
+                    : 'max-w-2xl sm:max-w-3xl min-h-[340px] sm:min-h-[440px]'
                 } cursor-pointer select-none transition-transform duration-500 [transform-style:preserve-3d] ${
                   isFlipped ? '[transform:rotateY(180deg)]' : ''
                 }`}
               >
                 {/* FRONT FACE */}
-                <div className="absolute inset-0 [backface-visibility:hidden] rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-5 sm:p-8 flex flex-col justify-between transition-colors hover:border-blue-500/50">
+                <div className={`absolute inset-0 [backface-visibility:hidden] rounded-3xl ${
+                  isFullscreen
+                    ? 'bg-[#151D30] border border-slate-700/80 shadow-2xl p-6 sm:p-10'
+                    : 'bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-5 sm:p-8'
+                } flex flex-col justify-between transition-colors hover:border-blue-500/50`}>
                   <div className="flex items-center justify-between text-xs">
                     <button
                       type="button"
@@ -379,13 +404,13 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[220px] sm:max-h-[300px]">
+                  <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[300px] sm:max-h-[420px]">
                     <div className="space-y-3 sm:space-y-4">
-                      <h2 className="text-3xl sm:text-5xl font-black text-[#1B1F2E] dark:text-white tracking-tight leading-snug break-words">
+                      <h2 className={`${isFullscreen ? 'text-4xl sm:text-6xl lg:text-7xl' : 'text-3xl sm:text-5xl'} font-black text-[#1B1F2E] dark:text-white tracking-tight leading-snug break-words`}>
                         {currentCard.frontText}
                       </h2>
                       {currentCard.phonetic && (
-                        <p className="text-base sm:text-lg font-mono text-[#2E68FF] font-extrabold">{currentCard.phonetic}</p>
+                        <p className={`${isFullscreen ? 'text-xl sm:text-3xl' : 'text-base sm:text-lg'} font-mono text-[#2E68FF] font-extrabold`}>{currentCard.phonetic}</p>
                       )}
                     </div>
 
@@ -396,14 +421,20 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                     )}
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs font-bold flex items-center justify-center gap-2">
+                  <div className={`p-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 ${
+                    isFullscreen ? 'bg-slate-900/60 text-slate-400' : 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400'
+                  }`}>
                     <Keyboard className="w-4 h-4 hidden sm:inline" />
-                    <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono text-[11px]">Space</kbd>)</span></span>
+                    <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 shadow-xs font-mono text-[11px]">Space</kbd>)</span></span>
                   </div>
                 </div>
 
                 {/* BACK FACE */}
-                <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-5 sm:p-8 flex flex-col justify-between transition-colors hover:border-blue-500/50">
+                <div className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-3xl ${
+                  isFullscreen
+                    ? 'bg-[#151D30] border border-slate-700/80 shadow-2xl p-6 sm:p-10'
+                    : 'bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-5 sm:p-8'
+                } flex flex-col justify-between transition-colors hover:border-blue-500/50`}>
                   <div className="flex items-center justify-between text-xs">
                     <button
                       type="button"
@@ -452,9 +483,9 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[220px] sm:max-h-[300px]">
+                  <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[300px] sm:max-h-[420px]">
                     <div className="space-y-3 sm:space-y-4">
-                      <p className="text-2xl sm:text-4xl font-extrabold text-[#1B1F2E] dark:text-white leading-relaxed break-words">
+                      <p className={`${isFullscreen ? 'text-3xl sm:text-5xl lg:text-6xl' : 'text-2xl sm:text-4xl'} font-extrabold text-[#1B1F2E] dark:text-white leading-relaxed break-words`}>
                         {currentCard.backText}
                       </p>
 

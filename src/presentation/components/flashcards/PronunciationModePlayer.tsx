@@ -185,12 +185,12 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
   const progressPercent = Math.min(100, Math.round((masteredCount / totalCount) * 100));
 
   return (
-    <div className={`max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200 ${
+    <div className={
       isFullscreen
-        ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] p-4 sm:p-6 overflow-y-auto flex flex-col justify-start items-center max-w-none'
-        : ''
-    }`}>
-      <div className={`w-full ${isFullscreen ? 'max-w-3xl space-y-4 pt-2 pb-6' : 'space-y-6'}`}>
+        ? 'fixed inset-0 z-[100] bg-[#090D16] text-white p-4 sm:p-8 overflow-y-auto flex flex-col justify-start items-center w-screen h-screen min-h-screen animate-in fade-in duration-200'
+        : 'max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200'
+    }>
+      <div className={`w-full ${isFullscreen ? 'max-w-5xl space-y-6 pt-2 pb-8' : 'space-y-6'}`}>
         
         {/* 1. TOP CONTROL BAR */}
         <div className="p-4 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-sm flex flex-wrap items-center justify-between gap-3">
