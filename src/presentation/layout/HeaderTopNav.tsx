@@ -84,7 +84,7 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
                 <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#2E68FF] to-[#7C5CFC] flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform duration-200">
                   <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
+                <div className="hidden sm:block">
                   <div className="flex items-center gap-1.5">
                     <span className="font-extrabold text-lg sm:text-xl tracking-tight text-[#1B1F2E] dark:text-[#F1F5F9] font-display">
                       Talk2Me
@@ -133,14 +133,14 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
             {/* Right Action Tools */}
             <div className="flex items-center gap-2 sm:gap-3">
               
-              {/* Create Course Button */}
+              {/* Create Course Button — icon-only on mobile to save header space */}
               <button
                 onClick={() => onOpenCreateModal()}
-                className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-full bg-[#2E68FF] hover:bg-[#1E52DB] text-white text-xs font-bold shadow-sm transition-all"
+                className="flex items-center gap-1.5 p-2 sm:px-3.5 sm:py-2 rounded-full bg-[#2E68FF] hover:bg-[#1E52DB] text-white text-xs font-bold shadow-sm transition-all"
+                title="Tạo khóa học"
               >
                 <PlusCircle className="w-4 h-4" />
                 <span className="hidden sm:inline">Tạo khóa học</span>
-                <span className="sm:hidden">Tạo</span>
               </button>
 
               {/* Dark Mode Toggle (Desktop) */}
