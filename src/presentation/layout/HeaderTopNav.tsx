@@ -306,10 +306,10 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
                       if (onOpenAuth) onOpenAuth('login');
                       else setCurrentTab('auth');
                     }}
-                    className="px-3 sm:px-4 py-2 rounded-full text-xs font-extrabold text-white bg-[#2E68FF] hover:bg-blue-600 shadow-sm transition-all flex items-center gap-1.5 sm:gap-2 active:scale-95"
+                    className="shrink-0 px-3 sm:px-4 py-2 rounded-full text-xs font-extrabold text-white bg-[#2E68FF] hover:bg-blue-600 shadow-sm transition-all flex items-center gap-1.5 sm:gap-2 active:scale-95"
                   >
-                    <LogIn className="w-4 h-4" />
-                    <span>Đăng nhập</span>
+                    <LogIn className="w-4 h-4 shrink-0" />
+                    <span className="whitespace-nowrap">Đăng nhập</span>
                   </button>
                 )}
               </div>

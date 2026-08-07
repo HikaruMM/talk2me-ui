@@ -275,7 +275,7 @@ function AppContent() {
             <Route
               path="/"
               element={
-                <div className="py-8">
+                <div className="pt-8">
                   <HomePage
                     courses={filteredPublicCourses}
                     categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
@@ -323,7 +323,10 @@ function AppContent() {
             />
 
           {/* FLASHCARDS ROUTE */}
-          <Route path="/flashcards" element={<FlashcardsPage />} />
+          <Route
+            path="/flashcards"
+            element={<FlashcardsPage onOpenAuth={(mode) => handleOpenAuth(mode)} />}
+          />
 
           {/* DEDICATED NOTIFICATIONS ROUTE */}
           <Route path="/notifications" element={<NotificationsPage />} />
