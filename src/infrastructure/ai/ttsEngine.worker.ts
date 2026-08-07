@@ -1,5 +1,10 @@
 import { KokoroTTS } from 'kokoro-js';
-import type { ProgressInfo } from '@huggingface/transformers';
+import { env, type ProgressInfo } from '@huggingface/transformers';
+
+// Configure HuggingFace Transformers.js environment.
+// Fixes CORS policy blocking on Cloudflare Workers (*.workers.dev) when fetching models from huggingface.co.
+env.allowLocalModels = false;
+env.remoteHost = 'https://hf-mirror.com/';
 
 // Runs entirely off the main thread — long synthesis calls (long text) no longer block
 // UI rendering / input, which is what previously made the browser show a "page
