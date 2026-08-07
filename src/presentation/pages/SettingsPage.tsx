@@ -23,6 +23,8 @@ import {
   HardDrive,
   ArrowLeft
 } from 'lucide-react';
+import { useAuth } from '../../application';
+import { RequireAuthGate } from '../components/auth';
 import { ResourceManagerSection } from '../components/settings/ResourceManagerSection';
 import {
   GeminiModel,
@@ -38,9 +40,11 @@ import {
 
 interface SettingsPageProps {
   onBack?: () => void;
+  onOpenAuth: (mode?: 'login' | 'signup') => void;
 }
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
+export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onOpenAuth }) => {
+  const { user } = useAuth();
   const [config, setConfig] = useState<GeminiConfig>(getStoredConfig);
   const [apiKeyInput, setApiKeyInput] = useState<string>(config.apiKey);
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
@@ -233,6 +237,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       setIsGenerating(false);
     }
   };
+
+  if (!user) {
+    return (
+      <RequireAuthGate
+        icon={Key}
+        title="Đăng nhập để dùng Cài đặt"
+        description="API Key và cấu hình model AI là dữ liệu cá nhân, cần đăng nhập để lưu và quản lý an toàn."
+        benefits={[
+          'Cấu hình Gemini API Key riêng, tăng hạn mức',
+          'Chọn model AI tối ưu cho từng tính năng',
+          'Cấu hình được lưu và đồng bộ theo tài khoản',
+        ]}
+        onOpenAuth={onOpenAuth}
+      />
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-in fade-in duration-200">

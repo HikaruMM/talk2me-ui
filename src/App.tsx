@@ -332,8 +332,8 @@ function AppContent() {
           <Route path="/notifications" element={<NotificationsPage />} />
 
           {/* ANALYTICS / PROGRESS ROUTE */}
-          <Route path="/progress" element={<AnalyticsPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/progress" element={<AnalyticsPage onOpenAuth={(mode) => handleOpenAuth(mode)} />} />
+          <Route path="/analytics" element={<AnalyticsPage onOpenAuth={(mode) => handleOpenAuth(mode)} />} />
 
           {/* COMMUNITY ROUTE */}
           <Route
@@ -347,7 +347,10 @@ function AppContent() {
           />
 
           {/* SETTINGS ROUTE */}
-          <Route path="/settings" element={<SettingsPage onBack={() => navigate('/')} />} />
+          <Route
+            path="/settings"
+            element={<SettingsPage onBack={() => navigate('/')} onOpenAuth={(mode) => handleOpenAuth(mode)} />}
+          />
 
           {/* AUTH ROUTE */}
           <Route 
