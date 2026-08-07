@@ -26,8 +26,6 @@ import { LearnModePlayer } from './LearnModePlayer';
 import { PronunciationModePlayer } from './PronunciationModePlayer';
 import { reviewFlashcard } from '../../../infrastructure/api/talk2meApi';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
-import { useAiResourceGate } from '../../hooks/useAiResourceGate';
-import { ModelDownloadPromptModal } from '../exercises/ModelDownloadPromptModal';
 
 interface FlashcardPlayerProps {
   set: FlashcardSet;
@@ -67,8 +65,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
 
   const currentCard = set.cards[currentIndex] || set.cards[0];
 
-  const { speak: speakKokoro, preload: preloadTts } = useTextToSpeech();
-  const ttsGate = useAiResourceGate('tts', preloadTts);
+  const { speak: speakFront } = useTextToSpeech();
 
   // Collapse the video-evidence embed whenever the card changes — otherwise a previous
   // card's clip would keep silently autoplaying off-screen after moving on.
@@ -76,8 +73,9 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
     setShowVideoClip(false);
   }, [currentIndex]);
 
-  // Back-face "definition" text is often Vietnamese, which Kokoro doesn't support — keeps
-  // using the browser's native voice. Front-face term text uses Kokoro (speakKokoro) instead.
+  // Both faces just read English text via the browser's native voice (speakFront here is
+  // the same useTextToSpeech() hook used elsewhere in the app); kept as two separate calls
+  // since front/back text can theoretically differ in language in the future.
   const speakBack = (text: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -155,12 +153,18 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
       } else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
         e.preventDefault();
         setIsFlipped((prev) => !prev);
+      } else if (e.code === 'KeyF') {
+        e.preventDefault();
+        setIsFullscreen((prev) => !prev);
+      } else if (e.code === 'Escape' && isFullscreen) {
+        e.preventDefault();
+        setIsFullscreen(false);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeMode, handleAgain, handleGood]);
+  }, [activeMode, handleAgain, handleGood, isFullscreen]);
 
   const toggleFullscreen = () => {
     setIsFullscreen((prev) => !prev);
@@ -273,354 +277,358 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
 
       {/* MODE 1: FLASHCARD PLAYER */}
       {activeMode === 'flashcard' && (
-        <div className={`space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] text-slate-900 dark:text-white p-3 sm:p-6 overflow-y-auto sm:overflow-hidden flex flex-col justify-center items-center' : ''}`}>
-          {/* Pinned to the viewport corner (fixed, not part of the scrollable flow below) —
-              on short viewports the rest of the fullscreen layout (card + rating buttons +
-              the toggle further down) can overflow past the fold, making the only exit/mark
-              controls invisible without scrolling. These are always reachable regardless. */}
-          {isFullscreen && (
-            <div className="fixed top-3 right-3 sm:top-5 sm:right-5 z-[60] flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => toggleStar(currentCard.id)}
-                className={`p-2.5 rounded-full border shadow-md transition-colors ${
-                  starredIds.includes(currentCard.id)
-                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
-                    : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
-                }`}
-                title="Gắn sao"
-              >
-                <Star className={`w-5 h-5 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
-              </button>
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                className="p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                title="Thoát toàn màn hình"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          )}
-          <div className={`w-full ${isFullscreen ? 'max-w-3xl h-full flex flex-col justify-between space-y-3 sm:space-y-4 py-1 sm:py-2' : 'space-y-6'}`}>
-          
-          <div className="flex items-center justify-between gap-2 sm:gap-4">
-            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-[11px] sm:text-xs">
-              <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[9px] sm:text-[10px]">
-                {learningIds.length}
-              </span>
-              <span>Đang học</span>
-            </div>
-
-            <div className="text-center font-extrabold text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
-              <span className="text-slate-800 dark:text-slate-200">{currentIndex + 1} / {set.cards.length}</span>
-              <span className="mx-1.5 sm:mx-2">•</span>
-              <span className="truncate max-w-[110px] sm:max-w-[250px] inline-block align-bottom text-slate-600 dark:text-slate-300">
-                {set.title}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-[11px] sm:text-xs">
-              <span>Đã biết</span>
-              <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] sm:text-[10px]">
-                {knownIds.length}
-              </span>
-            </div>
-          </div>
-
-          {/* 3D Card Flip Outer Container — Dead Center */}
-          <div className="[perspective:1000px] w-full flex-1 flex items-center justify-center my-auto py-2">
-            <div
-              onClick={() => setIsFlipped(!isFlipped)}
-              className={`relative w-full max-w-2xl sm:max-w-3xl ${isFullscreen ? 'h-[50vh] sm:h-[55vh] min-h-[280px] sm:min-h-[360px] max-h-[520px]' : 'min-h-[340px] sm:min-h-[440px]'} cursor-pointer select-none transition-transform duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}
-            >
-              {/* FRONT FACE */}
-              <div className="absolute inset-0 [backface-visibility:hidden] rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-4 sm:p-8 flex flex-col justify-between transition-colors hover:border-blue-500/50">
-                <div className="flex items-center justify-between text-xs">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowHint(!showHint);
-                    }}
-                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-bold transition-colors ${
-                      showHint
-                        ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 border-amber-300'
-                        : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-transparent hover:text-slate-800 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                    <span>{showHint ? 'Ẩn gợi ý' : 'Hiển thị gợi ý'}</span>
-                  </button>
-
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        speakKokoro(currentCard.frontText);
-                      }}
-                      className="p-1.5 sm:p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 transition-transform"
-                      title="Phát âm"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleStar(currentCard.id);
-                      }}
-                      className={`p-1.5 sm:p-2 rounded-full border transition-colors ${
-                        starredIds.includes(currentCard.id)
-                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent'
-                      }`}
-                      title="Gắn sao"
-                    >
-                      <Star className={`w-4 h-4 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[220px] sm:max-h-[300px]">
-                  <div className="space-y-3 sm:space-y-4">
-                    <h2 className="text-2xl sm:text-4xl font-black text-[#1B1F2E] dark:text-white tracking-tight leading-snug break-words">
-                      {currentCard.frontText}
-                    </h2>
-                    {currentCard.phonetic && (
-                      <p className="text-sm sm:text-base font-mono text-[#2E68FF] font-bold">{currentCard.phonetic}</p>
-                    )}
-                  </div>
-
-                  {showHint && (
-                    <div className="p-2.5 sm:p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-[11px] sm:text-xs font-semibold max-w-md mx-auto animate-in fade-in">
-                      💡 Gợi ý: {currentCard.phonetic ? `Phiên âm: ${currentCard.phonetic} | ` : ''}{currentCard.backText.slice(0, 15)}...
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[10px] sm:text-[11px] font-bold flex items-center justify-center gap-1.5 sm:gap-2">
-                  <Keyboard className="w-3.5 h-3.5 hidden sm:inline" />
-                  <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono">phím cách</kbd>)</span></span>
-                </div>
+        <div
+          className={
+            isFullscreen
+              ? 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md text-slate-900 dark:text-white p-3 sm:p-6 overflow-y-auto flex flex-col justify-center items-center animate-in fade-in duration-200'
+              : 'space-y-6'
+          }
+        >
+          {/* Entire Flashcard Player Cluster Container */}
+          <div
+            className={`w-full max-w-4xl mx-auto rounded-3xl transition-all duration-300 ${
+              isFullscreen
+                ? 'bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-8 space-y-4 sm:space-y-6 max-h-[96vh] flex flex-col justify-between overflow-y-auto'
+                : 'space-y-6'
+            }`}
+          >
+            {/* Top Status Header Counter Bar */}
+            <div className="flex items-center justify-between gap-2 sm:gap-4 p-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
+                  {learningIds.length}
+                </span>
+                <span>Đang học</span>
               </div>
 
-              {/* BACK FACE */}
-              <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-4 sm:p-8 flex flex-col justify-between transition-colors hover:border-blue-500/50">
-                <div className="flex items-center justify-between text-xs">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowHint(!showHint);
-                    }}
-                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-bold transition-colors ${
-                      showHint
-                        ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 border-amber-300'
-                        : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-transparent hover:text-slate-800 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                    <span>{showHint ? 'Ẩn gợi ý' : 'Hiển thị gợi ý'}</span>
-                  </button>
+              <div className="text-center font-extrabold text-xs sm:text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1.5 sm:gap-2">
+                <span className="text-slate-900 dark:text-white font-black">{currentIndex + 1} / {set.cards.length}</span>
+                <span>•</span>
+                <span className="truncate max-w-[120px] sm:max-w-[280px] text-slate-700 dark:text-slate-300">
+                  {set.title}
+                </span>
+              </div>
 
-                  <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+                <span>Đã biết</span>
+                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px]">
+                  {knownIds.length}
+                </span>
+              </div>
+            </div>
+
+            {/* 3D Card Flip Outer Container */}
+            <div className="[perspective:1000px] w-full flex-1 flex items-center justify-center my-auto py-2">
+              <div
+                onClick={() => setIsFlipped(!isFlipped)}
+                className={`relative w-full max-w-2xl sm:max-w-3xl ${
+                  isFullscreen
+                    ? 'h-[48vh] sm:h-[54vh] min-h-[300px] sm:min-h-[380px] max-h-[540px]'
+                    : 'min-h-[340px] sm:min-h-[440px]'
+                } cursor-pointer select-none transition-transform duration-500 [transform-style:preserve-3d] ${
+                  isFlipped ? '[transform:rotateY(180deg)]' : ''
+                }`}
+              >
+                {/* FRONT FACE */}
+                <div className="absolute inset-0 [backface-visibility:hidden] rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-5 sm:p-8 flex flex-col justify-between transition-colors hover:border-blue-500/50">
+                  <div className="flex items-center justify-between text-xs">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        speakBack(currentCard.backText);
+                        setShowHint(!showHint);
                       }}
-                      className="p-1.5 sm:p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 transition-transform"
-                      title="Phát âm"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleStar(currentCard.id);
-                      }}
-                      className={`p-1.5 sm:p-2 rounded-full border transition-colors ${
-                        starredIds.includes(currentCard.id)
-                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent'
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-extrabold transition-colors ${
+                        showHint
+                          ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 border-amber-300'
+                          : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-transparent hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
-                      title="Gắn sao"
                     >
-                      <Star className={`w-4 h-4 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
+                      <Lightbulb className="w-4 h-4 text-amber-500" />
+                      <span>{showHint ? 'Ẩn gợi ý' : 'Hiển thị gợi ý'}</span>
                     </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          speakFront(currentCard.frontText);
+                        }}
+                        className="w-9 h-9 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 active:scale-95 transition-all flex items-center justify-center shadow-2xs"
+                        title="Phát âm tiếng Anh"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleStar(currentCard.id);
+                        }}
+                        className={`w-9 h-9 rounded-full border transition-all flex items-center justify-center shadow-2xs ${
+                          starredIds.includes(currentCard.id)
+                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent hover:text-slate-700'
+                        }`}
+                        title="Gắn sao từ vựng"
+                      >
+                        <Star className={`w-4 h-4 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[220px] sm:max-h-[300px]">
-                  <div className="space-y-3 sm:space-y-4">
-                    <p className="text-xl sm:text-3xl font-extrabold text-[#1B1F2E] dark:text-white leading-relaxed break-words">
-                      {currentCard.backText}
-                    </p>
+                  <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[220px] sm:max-h-[300px]">
+                    <div className="space-y-3 sm:space-y-4">
+                      <h2 className="text-3xl sm:text-5xl font-black text-[#1B1F2E] dark:text-white tracking-tight leading-snug break-words">
+                        {currentCard.frontText}
+                      </h2>
+                      {currentCard.phonetic && (
+                        <p className="text-base sm:text-lg font-mono text-[#2E68FF] font-extrabold">{currentCard.phonetic}</p>
+                      )}
+                    </div>
 
-                    {currentCard.imageUrl && (
-                      <div className="max-w-xs mx-auto rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                        <img src={currentCard.imageUrl} alt="Card visual" className="w-full h-28 sm:h-40 object-cover" />
+                    {showHint && (
+                      <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-xs font-semibold max-w-md mx-auto animate-in fade-in">
+                        💡 Gợi ý: {currentCard.phonetic ? `Phiên âm: ${currentCard.phonetic} | ` : ''}{currentCard.backText.slice(0, 15)}...
                       </div>
                     )}
+                  </div>
 
-                    {currentCard.exampleSentence && (
-                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 italic max-w-lg mx-auto">
-                        "{currentCard.exampleSentence}"
+                  <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs font-bold flex items-center justify-center gap-2">
+                    <Keyboard className="w-4 h-4 hidden sm:inline" />
+                    <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono text-[11px]">Space</kbd>)</span></span>
+                  </div>
+                </div>
+
+                {/* BACK FACE */}
+                <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xl hover:shadow-2xl p-5 sm:p-8 flex flex-col justify-between transition-colors hover:border-blue-500/50">
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowHint(!showHint);
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-extrabold transition-colors ${
+                        showHint
+                          ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 border-amber-300'
+                          : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-transparent hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Lightbulb className="w-4 h-4 text-amber-500" />
+                      <span>{showHint ? 'Ẩn gợi ý' : 'Hiển thị gợi ý'}</span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          speakBack(currentCard.backText);
+                        }}
+                        className="w-9 h-9 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 active:scale-95 transition-all flex items-center justify-center shadow-2xs"
+                        title="Phát âm định nghĩa"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleStar(currentCard.id);
+                        }}
+                        className={`w-9 h-9 rounded-full border transition-all flex items-center justify-center shadow-2xs ${
+                          starredIds.includes(currentCard.id)
+                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent hover:text-slate-700'
+                        }`}
+                        title="Gắn sao từ vựng"
+                      >
+                        <Star className={`w-4 h-4 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="text-center my-auto px-2 sm:px-4 py-4 sm:py-8 space-y-3 sm:space-y-4 overflow-y-auto max-h-[220px] sm:max-h-[300px]">
+                    <div className="space-y-3 sm:space-y-4">
+                      <p className="text-2xl sm:text-4xl font-extrabold text-[#1B1F2E] dark:text-white leading-relaxed break-words">
+                        {currentCard.backText}
                       </p>
+
+                      {currentCard.imageUrl && (
+                        <div className="max-w-xs mx-auto rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                          <img src={currentCard.imageUrl} alt="Card visual" className="w-full h-28 sm:h-40 object-cover" />
+                        </div>
+                      )}
+
+                      {currentCard.exampleSentence && (
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 italic max-w-lg mx-auto">
+                          "{currentCard.exampleSentence}"
+                        </p>
+                      )}
+                    </div>
+
+                    {showHint && (
+                      <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-xs font-semibold max-w-md mx-auto animate-in fade-in">
+                        💡 Gợi ý: {currentCard.phonetic ? `Phiên âm: ${currentCard.phonetic} | ` : ''}{currentCard.backText.slice(0, 15)}...
+                      </div>
                     )}
                   </div>
 
-                  {showHint && (
-                    <div className="p-2.5 sm:p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-[11px] sm:text-xs font-semibold max-w-md mx-auto animate-in fade-in">
-                      💡 Gợi ý: {currentCard.phonetic ? `Phiên âm: ${currentCard.phonetic} | ` : ''}{currentCard.backText.slice(0, 15)}...
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-[10px] sm:text-[11px] font-bold flex items-center justify-center gap-1.5 sm:gap-2">
-                  <Keyboard className="w-3.5 h-3.5 hidden sm:inline" />
-                  <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono">phím cách</kbd>)</span></span>
+                  <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs font-bold flex items-center justify-center gap-2">
+                    <Keyboard className="w-4 h-4 hidden sm:inline" />
+                    <span>Chạm thẻ để lật <span className="hidden sm:inline">(hoặc nhấn <kbd className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 shadow-xs text-slate-700 dark:text-slate-200 font-mono text-[11px]">Space</kbd>)</span></span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {currentCard.sourceVideoId && (
-            <div className="flex flex-col items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowVideoClip((prev) => !prev)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 text-[11px] font-extrabold hover:bg-rose-100 dark:hover:bg-rose-900 transition-colors"
-              >
-                <Film className="w-3.5 h-3.5" />
-                <span>{showVideoClip ? 'Ẩn video gốc' : 'Xem video gốc (dẫn chứng)'}</span>
-              </button>
-              {showVideoClip && (
-                <div className="w-full max-w-md aspect-video rounded-2xl overflow-hidden border border-[#E4E8F0] dark:border-[#334155] shadow-md">
-                  <iframe
-                    key={currentCard.id}
-                    src={`https://www.youtube.com/embed/${currentCard.sourceVideoId}?start=${currentCard.clipStartSec ?? 0}&end=${currentCard.clipEndSec ?? 0}&autoplay=1`}
-                    className="w-full h-full"
-                    allow="autoplay; encrypted-media"
-                    allowFullScreen
-                    title="Video gốc"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-2 sm:gap-4 pt-1 sm:pt-2">
-            <label className="flex items-center gap-1.5 sm:gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
-              <button
-                type="button"
-                onClick={() => setTrackProgress(!trackProgress)}
-                className={`w-8 sm:w-9 h-4.5 sm:h-5 rounded-full p-0.5 transition-colors ${
-                  trackProgress ? 'bg-[#2E68FF]' : 'bg-slate-300 dark:bg-slate-700'
-                }`}
-              >
-                <div
-                  className={`w-3.5 sm:w-4 h-3.5 sm:h-4 rounded-full bg-white transition-transform ${
-                    trackProgress ? 'translate-x-3.5 sm:translate-x-4' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-              <span className="hidden sm:inline">Theo dõi tiến độ</span>
-            </label>
-
-            {trackProgress ? (
-              <div className="flex items-center gap-1.5 sm:gap-3">
-                {/* 1. AGAIN (< 1 min) */}
+            {/* Video Evidence Button */}
+            {currentCard.sourceVideoId && (
+              <div className="flex flex-col items-center gap-3">
                 <button
                   type="button"
-                  onClick={handleAgain}
-                  className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
-                  title="Chưa nhớ - Ôn lại sau 1 phút"
+                  onClick={() => setShowVideoClip((prev) => !prev)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200/80 dark:border-rose-900/50 text-rose-600 dark:text-rose-300 text-xs font-extrabold hover:bg-rose-100 dark:hover:bg-rose-900/80 transition-all shadow-xs active:scale-95"
                 >
-                  <span className="text-[9px] sm:text-[10px] font-extrabold opacity-75 group-hover:opacity-100">&lt; 1 phút</span>
-                  <span className="text-[11px] sm:text-xs font-black">Học lại</span>
+                  <Film className="w-4 h-4 text-rose-500" />
+                  <span>{showVideoClip ? 'Ẩn video gốc' : 'Xem video gốc (dẫn chứng)'}</span>
                 </button>
-
-                {/* 2. HARD (10 min) */}
-                <button
-                  type="button"
-                  onClick={handleHard}
-                  className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
-                  title="Khó nhớ - Ôn lại sau 10 phút"
-                >
-                  <span className="text-[9px] sm:text-[10px] font-extrabold opacity-75 group-hover:opacity-100">10 phút</span>
-                  <span className="text-[11px] sm:text-xs font-black">Khó</span>
-                </button>
-
-                {/* 3. GOOD (1 day) */}
-                <button
-                  type="button"
-                  onClick={handleGood}
-                  className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
-                  title="Nhớ tốt - Ôn lại vào ngày mai"
-                >
-                  <span className="text-[9px] sm:text-[10px] font-extrabold opacity-75 group-hover:opacity-100">1 ngày</span>
-                  <span className="text-[11px] sm:text-xs font-black">Tốt</span>
-                </button>
-
-                {/* 4. EASY (4 days) */}
-                <button
-                  type="button"
-                  onClick={handleEasy}
-                  className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
-                  title="Rất thuộc - Ôn lại sau 4 ngày"
-                >
-                  <span className="text-[9px] sm:text-[10px] font-extrabold opacity-75 group-hover:opacity-100">4 ngày</span>
-                  <span className="text-[11px] sm:text-xs font-black">Dễ</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2.5 sm:gap-4">
-                <button
-                  type="button"
-                  onClick={handleAgain}
-                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-slate-200 dark:border-slate-700 text-amber-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
-                  title="Đang học"
-                >
-                  <X className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleGood}
-                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-slate-200 dark:border-slate-700 text-emerald-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
-                  title="Đã biết"
-                >
-                  <Check className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.5] group-hover:scale-110 transition-transform" />
-                </button>
+                {showVideoClip && (
+                  <div className="w-full max-w-md aspect-video rounded-2xl overflow-hidden border border-[#E4E8F0] dark:border-[#334155] shadow-md">
+                    <iframe
+                      key={currentCard.id}
+                      src={`https://www.youtube.com/embed/${currentCard.sourceVideoId}?start=${currentCard.clipStartSec ?? 0}&end=${currentCard.clipEndSec ?? 0}&autoplay=1`}
+                      className="w-full h-full"
+                      allow="autoplay; encrypted-media"
+                      allowFullScreen
+                      title="Video gốc"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={handleUndo}
-                disabled={currentIndex === 0}
-                className="p-2.5 sm:p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors"
-                title="Hoàn tác"
-              >
-                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
+            {/* Bottom Action Bar */}
+            <div className="flex items-center justify-between gap-2 sm:gap-4 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                <button
+                  type="button"
+                  onClick={() => setTrackProgress(!trackProgress)}
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
+                    trackProgress ? 'bg-[#2E68FF]' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                      trackProgress ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+                <span className="hidden sm:inline">Theo dõi tiến độ</span>
+              </label>
 
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                className="p-2.5 sm:p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                title={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
-              >
-                {isFullscreen ? <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5" />}
-              </button>
+              {trackProgress ? (
+                <div className="flex items-center gap-1.5 sm:gap-3">
+                  {/* AGAIN (< 1 min) */}
+                  <button
+                    type="button"
+                    onClick={handleAgain}
+                    className="px-3 sm:px-4 py-2 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
+                    title="Chưa nhớ - Ôn lại sau 1 phút"
+                  >
+                    <span className="text-[10px] font-extrabold opacity-80 group-hover:opacity-100">&lt; 1 phút</span>
+                    <span className="text-xs font-black">Học lại</span>
+                  </button>
+
+                  {/* HARD (10 min) */}
+                  <button
+                    type="button"
+                    onClick={handleHard}
+                    className="px-3 sm:px-4 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
+                    title="Khó nhớ - Ôn lại sau 10 phút"
+                  >
+                    <span className="text-[10px] font-extrabold opacity-80 group-hover:opacity-100">10 phút</span>
+                    <span className="text-xs font-black">Khó</span>
+                  </button>
+
+                  {/* GOOD (1 day) */}
+                  <button
+                    type="button"
+                    onClick={handleGood}
+                    className="px-3 sm:px-4 py-2 rounded-2xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
+                    title="Nhớ tốt - Ôn lại vào ngày mai"
+                  >
+                    <span className="text-[10px] font-extrabold opacity-80 group-hover:opacity-100">1 ngày</span>
+                    <span className="text-xs font-black">Tốt</span>
+                  </button>
+
+                  {/* EASY (4 days) */}
+                  <button
+                    type="button"
+                    onClick={handleEasy}
+                    className="px-3 sm:px-4 py-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
+                    title="Rất thuộc - Ôn lại sau 4 ngày"
+                  >
+                    <span className="text-[10px] font-extrabold opacity-80 group-hover:opacity-100">4 ngày</span>
+                    <span className="text-xs font-black">Dễ</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAgain}
+                    className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-slate-200 dark:border-slate-700 text-amber-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
+                    title="Đang học"
+                  >
+                    <X className="w-6 h-6 stroke-[2.5] group-hover:scale-110 transition-transform" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGood}
+                    className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-slate-200 dark:border-slate-700 text-emerald-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
+                    title="Đã biết"
+                  >
+                    <Check className="w-6 h-6 stroke-[2.5] group-hover:scale-110 transition-transform" />
+                  </button>
+                </div>
+              )}
+
+              {/* Undo & Phóng to / Thu nhỏ Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={currentIndex === 0}
+                  className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 transition-all cursor-pointer shadow-xs active:scale-95"
+                  title="Hoàn tác (Quay lại thẻ trước)"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                </button>
+
+                {/* Phóng to / Thu nhỏ Button */}
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className={`p-3 rounded-2xl transition-all cursor-pointer shadow-xs active:scale-95 flex items-center justify-center ${
+                    isFullscreen
+                      ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent'
+                  }`}
+                  title={isFullscreen ? 'Thu nhỏ (Thoát toàn màn hình)' : 'Phóng to toàn cụm (Toàn màn hình)'}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="w-5 h-5 stroke-[2.5]" />
+                  ) : (
+                    <Maximize2 className="w-5 h-5 stroke-[2.5]" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -638,7 +646,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                   >
                     <div className="sm:col-span-5 font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
                       <button
-                        onClick={() => speakKokoro(c.frontText)}
+                        onClick={() => speakFront(c.frontText)}
                         className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
                       >
                         <Volume2 className="w-3.5 h-3.5" />
@@ -655,8 +663,6 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
               </div>
             </div>
           )}
-
-          </div>
         </div>
       )}
 
@@ -732,13 +738,6 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
       {activeMode === 'pronounce' && (
         <PronunciationModePlayer set={set} onFinish={() => setActiveMode('flashcard')} />
       )}
-
-      <ModelDownloadPromptModal
-        isOpen={ttsGate.isPromptOpen}
-        onClose={ttsGate.closePrompt}
-        onGoToSettings={ttsGate.goToSettings}
-        {...ttsGate.modalProps}
-      />
 
     </div>
   );
