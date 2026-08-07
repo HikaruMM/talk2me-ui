@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ShadowingLine, ModeProgress, WordScore } from '../../../core/entities';
-import { 
-  Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2, Upload, 
-  PlayCircle, Video, BookmarkPlus, CheckSquare, Layers, ChevronDown 
+import {
+  Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2, Upload,
+  PlayCircle, Video, BookmarkPlus, CheckSquare, Layers, ChevronDown
 } from 'lucide-react';
 import { updateProgress } from '../../../infrastructure/api/talk2meApi';
 import { CompletedModeGate } from './CompletedModeGate';
 import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
 import { usePronunciationScorer } from '../../hooks/usePronunciationScorer';
-import { isModelDownloaded } from '../../../infrastructure/ai/resourceManager';
+import { useAiResourceGate } from '../../hooks/useAiResourceGate';
+import { useSpeechToTextFallback } from '../../hooks/useSpeechToTextFallback';
 import { ModelDownloadPromptModal } from './ModelDownloadPromptModal';
 import { ScoreGauges } from './ScoreGauges';
 import { WordScoreDisplay } from './WordScoreDisplay';
@@ -85,21 +85,14 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
     audio.play().catch((err) => console.warn('Không phát lại được bản ghi âm:', err));
   };
 
-  const navigate = useNavigate();
-  const [isPromptOpen, setIsPromptOpen] = useState(false);
-
   // Pronunciation scorer
   const { status: scorerStatus, loadProgress, result: scoringResult, error: scorerError, scoreAudio, preload, reset: resetScorer } = usePronunciationScorer();
+  const gate = useAiResourceGate('pronunciation', preload);
 
-  useEffect(() => {
-    isModelDownloaded().then((downloaded) => {
-      if (downloaded) {
-        preload();
-      } else {
-        setIsPromptOpen(true);
-      }
-    });
-  }, [preload]);
+  // Default mode when the AI model hasn't been downloaded: browser-native speech-to-text
+  // shows what the user said next to the target sentence for manual comparison — no
+  // automatic scoring.
+  const fallbackStt = useSpeechToTextFallback();
 
   if (progress?.completed && !isRetrying) {
     return (
@@ -136,6 +129,13 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
   };
 
   const startRecording = async () => {
+    // Default mode (AI model not downloaded): browser STT only, no MediaRecorder/blob needed.
+    if (!gate.isAvailable) {
+      fallbackStt.start();
+      setIsRecording(true);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
@@ -166,6 +166,14 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
   };
 
   const stopRecording = () => {
+    if (!gate.isAvailable) {
+      fallbackStt.stop();
+      setIsRecording(false);
+      setHasEvaluated(true);
+      setCompletedLines((prev) => new Set(prev).add(currentIndex));
+      return;
+    }
+
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
@@ -179,6 +187,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
     setIsRecording(false);
     setSelectedWord(null);
     resetScorer();
+    fallbackStt.reset();
 
     if (currentIndex < lines.length - 1) {
       setCurrentIndex((prev) => prev + 1);
@@ -196,6 +205,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
     setIsRecording(false);
     setSelectedWord(null);
     resetScorer();
+    fallbackStt.reset();
   };
 
   const handleWordClick = (wordId: string) => {
@@ -443,6 +453,16 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                     Line {currentIndex + 1} / {lines.length}
                   </span>
                 </div>
+                {!gate.isAvailable && (
+                  <div
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                    title="Chưa tải AI chấm điểm phát âm — đang dùng chế độ so sánh transcript cơ bản"
+                  >
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest">
+                      Chế độ cơ bản
+                    </span>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsAddingToFlashcard(true)}
@@ -503,7 +523,11 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
             </div>
 
             <p className="text-center text-xs font-bold uppercase tracking-wider mb-4 text-[#5A6478] dark:text-[#94A3B8]">
-              {isRecording
+              {!gate.isAvailable && isRecording
+                ? '🎙 Đang nghe... Hãy nói to câu trên!'
+                : !gate.isAvailable && hasEvaluated
+                ? '📝 Đã ghi nhận — tự so sánh với câu gốc bên dưới'
+                : isRecording
                 ? '🎙 Recording... Speak out loud!'
                 : isScoring
                 ? '🧠 Analyzing pronunciation...'
@@ -514,9 +538,30 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                 : 'Tap the microphone to start recording'}
             </p>
 
-            {hasEvaluated && !scoringResult && scorerError && (
+            {!gate.isAvailable && fallbackStt.unsupported && (
+              <div className="mb-4 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300 text-center">
+                Trình duyệt này không hỗ trợ nhận diện giọng nói. Hãy thử Google Chrome, hoặc tải Model AI ở trang Quản Lý Tài Nguyên để chấm điểm chính xác.
+              </div>
+            )}
+
+            {gate.isAvailable && hasEvaluated && !scoringResult && scorerError && (
               <div className="mb-4 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300 text-center">
                 Không thể phân tích phát âm lần này ({scorerError}). Bạn vẫn có thể tiếp tục — điểm phần này sẽ không được ghi nhận chi tiết.
+              </div>
+            )}
+
+            {!gate.isAvailable && hasEvaluated && (
+              <div className="mb-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-2">
+                <div>
+                  <span className="font-extrabold text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider">Bạn đã nói:</span>
+                  <p className="text-slate-800 dark:text-slate-100 font-semibold mt-0.5">
+                    {fallbackStt.transcript || '(không nhận diện được)'}
+                  </p>
+                </div>
+                <div>
+                  <span className="font-extrabold text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider">Câu gốc:</span>
+                  <p className="text-slate-600 dark:text-slate-300 mt-0.5">{currentLine.sampleText}</p>
+                </div>
               </div>
             )}
 
@@ -578,26 +623,30 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                   >
                     <Mic className="w-7 h-7" />
                   </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Tải file .wav lên để test chấm điểm (thay vì ghi âm)"
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-50 dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-slate-500 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>WAV</span>
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="audio/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        await runScoring(file);
-                      }
-                    }}
-                  />
+                  {gate.isAvailable && (
+                    <>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Tải file .wav lên để test chấm điểm (thay vì ghi âm)"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-50 dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-slate-500 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>WAV</span>
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            await runScoring(file);
+                          }
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -648,12 +697,10 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 
       {/* Model download prompt modal */}
       <ModelDownloadPromptModal
-        isOpen={isPromptOpen}
-        onClose={() => setIsPromptOpen(false)}
-        onGoToSettings={() => {
-          setIsPromptOpen(false);
-          navigate('/settings');
-        }}
+        isOpen={gate.isPromptOpen}
+        onClose={gate.closePrompt}
+        onGoToSettings={gate.goToSettings}
+        {...gate.modalProps}
       />
 
       {/* Add to flashcard modal */}

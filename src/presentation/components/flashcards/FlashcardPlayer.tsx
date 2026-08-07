@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Volume2, 
   Star, 
@@ -27,7 +26,7 @@ import { LearnModePlayer } from './LearnModePlayer';
 import { PronunciationModePlayer } from './PronunciationModePlayer';
 import { reviewFlashcard } from '../../../infrastructure/api/talk2meApi';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
-import { isTtsModelDownloaded } from '../../../infrastructure/ai/ttsEngine';
+import { useAiResourceGate } from '../../hooks/useAiResourceGate';
 import { ModelDownloadPromptModal } from '../exercises/ModelDownloadPromptModal';
 
 interface FlashcardPlayerProps {
@@ -68,23 +67,14 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
 
   const currentCard = set.cards[currentIndex] || set.cards[0];
 
-  const navigate = useNavigate();
-  const [isTtsPromptOpen, setIsTtsPromptOpen] = useState(false);
   const { speak: speakKokoro, preload: preloadTts } = useTextToSpeech();
+  const ttsGate = useAiResourceGate('tts', preloadTts);
 
   // Collapse the video-evidence embed whenever the card changes — otherwise a previous
   // card's clip would keep silently autoplaying off-screen after moving on.
   useEffect(() => {
     setShowVideoClip(false);
   }, [currentIndex]);
-
-  useEffect(() => {
-    if (isTtsModelDownloaded()) {
-      preloadTts();
-    } else {
-      setIsTtsPromptOpen(true);
-    }
-  }, [preloadTts]);
 
   // Back-face "definition" text is often Vietnamese, which Kokoro doesn't support — keeps
   // using the browser's native voice. Front-face term text uses Kokoro (speakKokoro) instead.
@@ -716,24 +706,10 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
       )}
 
       <ModelDownloadPromptModal
-        isOpen={isTtsPromptOpen}
-        onClose={() => setIsTtsPromptOpen(false)}
-        onGoToSettings={() => {
-          setIsTtsPromptOpen(false);
-          navigate('/settings');
-        }}
-        title="Cần Tải Model Đọc Giọng Nói (~86MB)"
-        subtitle="Phục vụ đọc to thuật ngữ Flashcard bằng giọng tự nhiên"
-        description={
-          <>
-            <p>
-              Nút loa dùng mô hình học máy <strong>Kokoro TTS</strong> để đọc thuật ngữ bằng giọng tự nhiên, chạy trực tiếp trên trình duyệt của bạn.
-            </p>
-            <p className="text-slate-500 dark:text-slate-400">
-              Hiện tại gói tài nguyên này chưa được tải về máy. Bạn có muốn di chuyển đến trang <strong>Quản Lý Tài Nguyên</strong> để tải về không?
-            </p>
-          </>
-        }
+        isOpen={ttsGate.isPromptOpen}
+        onClose={ttsGate.closePrompt}
+        onGoToSettings={ttsGate.goToSettings}
+        {...ttsGate.modalProps}
       />
 
     </div>

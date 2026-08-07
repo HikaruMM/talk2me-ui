@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { preloadTtsModel, synthesizeSpeech } from '../../infrastructure/ai/ttsEngine';
+import { isTtsModelDownloaded, preloadTtsModel, synthesizeSpeech } from '../../infrastructure/ai/ttsEngine';
 
 export type TtsStatus = 'idle' | 'loading-model' | 'synthesizing' | 'ready' | 'error';
 
@@ -54,6 +54,15 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
   const speak = useCallback(async (text: string) => {
     stop();
     setError(null);
+
+    // Not downloaded yet — go straight to the browser voice. Don't even attempt Kokoro:
+    // synthesizeSpeech() would otherwise silently kick off an ~86MB download on first call,
+    // including right after the user dismissed the "download?" prompt with "Later".
+    if (!isTtsModelDownloaded()) {
+      speakWithBrowserTts(text);
+      return;
+    }
+
     setStatus('synthesizing');
 
     try {

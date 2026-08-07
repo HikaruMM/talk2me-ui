@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Course, UserProfile } from './core/entities';
 import { INITIAL_CATEGORIES } from './infrastructure/data/mockCourses';
 import { 
@@ -17,7 +17,7 @@ import { getCourseDetail, getDueFlashcardCount } from './infrastructure/api/talk
 import { HeaderTopNav, FooterSection, BottomNav } from './presentation/layout';
 import { AuthModal, AuthRequirementModal } from './presentation/components/auth';
 import { CreateCourseModal } from './presentation/components/course';
-import { Toast } from './presentation/components/common';
+import { Toast, PageLoadingSpinner } from './presentation/components/common';
 import {
   HomePage,
   CourseDetailPage,
@@ -64,7 +64,7 @@ function AppContent() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Real, server-backed courses
-  const { data: myCourses = [] } = useCoursesQuery(selectedCategory, searchQuery);
+  const { data: myCourses = [], isLoading: isCoursesLoading } = useCoursesQuery(selectedCategory, searchQuery);
 
   useEffect(() => {
     if (!user) {
@@ -213,70 +213,71 @@ function AppContent() {
       {/* Main Page Content Body with React Router Routes */}
       <main className="flex-1 pb-20 xl:pb-0">
         <Routes>
-          {/* HOME PAGE ROUTE (Displays Platform Public Demo Courses) */}
-          <Route 
-            path="/" 
-            element={
-              activeCourse && currentTab === 'home-detail' ? (
-                <CourseDetailPage
-                  course={activeCourse}
-                  onBack={() => {
-                    setActiveCourse(null);
-                    setCurrentTab('home');
-                  }}
-                  onOpenCreateModal={handleOpenCreateModal}
-                  onDeleteCourse={handleDeleteCourse}
-                />
-              ) : (
-                <div className="py-8">
-                  <HomePage
-                    courses={filteredPublicCourses}
+            {/* HOME PAGE ROUTE (Displays Platform Public Demo Courses) */}
+            <Route 
+              path="/" 
+              element={
+                activeCourse && currentTab === 'home-detail' ? (
+                  <CourseDetailPage
+                    course={activeCourse}
+                    onBack={() => {
+                      setActiveCourse(null);
+                      setCurrentTab('home');
+                    }}
+                    onOpenCreateModal={handleOpenCreateModal}
+                    onDeleteCourse={handleDeleteCourse}
+                  />
+                ) : (
+                  <div className="py-8">
+                    <HomePage
+                      courses={filteredPublicCourses}
+                      categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
+                      selectedCategory={selectedCategory}
+                      onSelectCategory={setSelectedCategory}
+                      searchQuery={searchQuery}
+                      onSearchChange={setSearchQuery}
+                      onSelectCourse={(courseId) => {
+                        const targetCourse = publicCourses.find((c) => c.id === courseId) || publicCourses[0];
+                        setActiveCourse(targetCourse);
+                        setCurrentTab('home-detail');
+                      }}
+                      onCreateCourseClick={handleOpenCreateModal}
+                    />
+                  </div>
+                )
+              } 
+            />
+
+            {/* COURSES LIBRARY ROUTE (Displays User Created / Saved Courses) */}
+            <Route 
+              path="/courses" 
+              element={
+                activeCourse && currentTab === 'course-detail' ? (
+                  <CourseDetailPage
+                    course={activeCourse}
+                    onBack={() => {
+                      setActiveCourse(null);
+                      setCurrentTab('courses');
+                    }}
+                    onOpenCreateModal={handleOpenCreateModal}
+                    onDeleteCourse={handleDeleteCourse}
+                  />
+                ) : (
+                  <CoursesPage
+                    courses={myCourses}
                     categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
                     selectedCategory={selectedCategory}
                     onSelectCategory={setSelectedCategory}
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
-                    onSelectCourse={(courseId) => {
-                      const targetCourse = publicCourses.find((c) => c.id === courseId) || publicCourses[0];
-                      setActiveCourse(targetCourse);
-                      setCurrentTab('home-detail');
-                    }}
+                    onSelectCourse={handleSelectMyCourse}
                     onCreateCourseClick={handleOpenCreateModal}
+                    onDeleteCourse={handleDeleteCourse}
+                    isLoading={isCoursesLoading}
                   />
-                </div>
-              )
-            } 
-          />
-
-          {/* COURSES LIBRARY ROUTE (Displays User Created / Saved Courses) */}
-          <Route 
-            path="/courses" 
-            element={
-              activeCourse && currentTab === 'course-detail' ? (
-                <CourseDetailPage
-                  course={activeCourse}
-                  onBack={() => {
-                    setActiveCourse(null);
-                    setCurrentTab('courses');
-                  }}
-                  onOpenCreateModal={handleOpenCreateModal}
-                  onDeleteCourse={handleDeleteCourse}
-                />
-              ) : (
-                <CoursesPage
-                  courses={myCourses}
-                  categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
-                  selectedCategory={selectedCategory}
-                  onSelectCategory={setSelectedCategory}
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  onSelectCourse={handleSelectMyCourse}
-                  onCreateCourseClick={handleOpenCreateModal}
-                  onDeleteCourse={handleDeleteCourse}
-                />
-              )
-            } 
-          />
+                )
+              } 
+            />
 
           {/* FLASHCARDS ROUTE */}
           <Route path="/flashcards" element={<FlashcardsPage />} />

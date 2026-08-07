@@ -23,6 +23,9 @@ import {
 import { FlashcardSetEditor } from './FlashcardSetEditor';
 import { FlashcardPlayer } from './FlashcardPlayer';
 import { FlashcardFolderModal } from './FlashcardFolderModal';
+import { PageLoadingSpinner } from '../common/LoadingSpinner';
+import { useFlashcardDeckQuery, useDeleteFlashcardFolderMutation, useDeleteFlashcardSetMutation } from '../../../application/queries/useFlashcardsQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface FlashcardDeckProps {
   cards?: Flashcard[];
@@ -30,10 +33,18 @@ interface FlashcardDeckProps {
 }
 
 export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
-  const [folders, setFolders] = useState<FlashcardFolder[]>([]);
-  const [studySets, setStudySets] = useState<FlashcardSet[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data: deckData, isLoading, error: deckError } = useFlashcardDeckQuery();
+  const loadError = deckError ? (deckError instanceof Error ? deckError.message : 'Không tải được flashcard') : null;
+  const deleteSetMutation = useDeleteFlashcardSetMutation();
+  const deleteFolderMutation = useDeleteFlashcardFolderMutation();
+
+  // Local state fallbacks for instant optimistic UI updates
+  const [localFolders, setLocalFolders] = useState<FlashcardFolder[] | null>(null);
+  const [localStudySets, setLocalStudySets] = useState<FlashcardSet[] | null>(null);
+
+  const folders = localFolders ?? (deckData?.folders || []);
+  const studySets = localStudySets ?? (deckData?.studySets || []);
 
   const [viewState, setViewState] = useState<'dashboard' | 'folder-detail' | 'player' | 'editor'>('dashboard');
   
@@ -48,32 +59,6 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setIsLoading(true);
-        setLoadError(null);
-        const [folderSummaries, setSummaries] = await Promise.all([getFlashcardFolders(), getFlashcardSets()]);
-        if (cancelled) return;
-        const loadedSets: FlashcardSet[] = setSummaries.map((s) => ({ ...s, cards: [] }));
-        const loadedFolders: FlashcardFolder[] = folderSummaries.map((f) => ({
-          ...f,
-          setIds: loadedSets.filter((s) => s.folderId === f.id).map((s) => s.id),
-        }));
-        setFolders(loadedFolders);
-        setStudySets(loadedSets);
-      } catch (err) {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Không tải được flashcard.');
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Set summaries returned by the list endpoints don't include each card (that would be
   // wasteful for a dashboard grid) — fetch the full card list lazily the moment the user
   // actually opens a set to study/edit it.
@@ -82,7 +67,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
       try {
         const cards = await getFlashcardsInSet(set.id);
         const hydrated = { ...set, cards };
-        setStudySets((prev) => prev.map((s) => (s.id === set.id ? hydrated : s)));
+        setLocalStudySets((prev) => (prev || studySets).map((s) => (s.id === set.id ? hydrated : s)));
         setSelectedSet(hydrated);
       } catch {
         setSelectedSet(set);
@@ -94,17 +79,18 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   };
 
   const handleSaveSet = (newSet: FlashcardSet, practiceNow: boolean = false) => {
-    setStudySets((prev) => {
-      const exists = prev.some((s) => s.id === newSet.id);
+    setLocalStudySets((prev) => {
+      const current = prev || studySets;
+      const exists = current.some((s) => s.id === newSet.id);
       if (exists) {
-        return prev.map((s) => (s.id === newSet.id ? newSet : s));
+        return current.map((s) => (s.id === newSet.id ? newSet : s));
       }
-      return [newSet, ...prev];
+      return [newSet, ...current];
     });
 
     if (newSet.folderId) {
-      setFolders((prevFolders) =>
-        prevFolders.map((f) => {
+      setLocalFolders((prevFolders) =>
+        (prevFolders || folders).map((f) => {
           if (f.id === newSet.folderId && !f.setIds.includes(newSet.id)) {
             return { ...f, setIds: [...f.setIds, newSet.id] };
           }
@@ -112,6 +98,8 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
         })
       );
     }
+
+    queryClient.invalidateQueries({ queryKey: ['flashcard-deck'] });
 
     if (practiceNow) {
       setSelectedSet(newSet);
@@ -122,20 +110,22 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   };
 
   const handleSaveFolder = (folder: FlashcardFolder) => {
-    setFolders((prev) => {
-      const exists = prev.some((f) => f.id === folder.id);
+    setLocalFolders((prev) => {
+      const current = prev || folders;
+      const exists = current.some((f) => f.id === folder.id);
       if (exists) {
-        return prev.map((f) => (f.id === folder.id ? folder : f));
+        return current.map((f) => (f.id === folder.id ? folder : f));
       }
-      return [folder, ...prev];
+      return [folder, ...current];
     });
+    queryClient.invalidateQueries({ queryKey: ['flashcard-deck'] });
   };
 
   const handleDeleteSet = (setId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('Bạn có chắc chắn muốn xóa học phần này?')) {
-      deleteFlashcardSet(setId).catch((err) => console.warn('Không xóa được học phần trên server:', err));
-      setStudySets((prev) => prev.filter((s) => s.id !== setId));
+      deleteSetMutation.mutate(setId);
+      setLocalStudySets((prev) => (prev || studySets).filter((s) => s.id !== setId));
       if (selectedSet?.id === setId) {
         setSelectedSet(null);
         setViewState('dashboard');
@@ -146,8 +136,8 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   const handleDeleteFolder = (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('Bạn có chắc chắn muốn xóa thư mục này? (Các học phần bên trong vẫn sẽ giữ nguyên)')) {
-      deleteFlashcardFolder(folderId).catch((err) => console.warn('Không xóa được thư mục trên server:', err));
-      setFolders((prev) => prev.filter((f) => f.id !== folderId));
+      deleteFolderMutation.mutate(folderId);
+      setLocalFolders((prev) => (prev || folders).filter((f) => f.id !== folderId));
       if (selectedFolder?.id === folderId) {
         setSelectedFolder(null);
         setViewState('dashboard');
@@ -164,6 +154,10 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
     f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (f.description && f.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  if (isLoading) {
+    return <PageLoadingSpinner message="Đang tải học phần & thư mục Flashcard..." />;
+  }
 
   if (viewState === 'editor') {
     return (

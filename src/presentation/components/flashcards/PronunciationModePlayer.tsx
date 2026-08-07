@@ -18,9 +18,12 @@ import {
 import { FlashcardSet, Flashcard, ShadowingResult } from '../../../core/entities';
 import { usePronunciationScorer } from '../../hooks/usePronunciationScorer';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { useAiResourceGate } from '../../hooks/useAiResourceGate';
+import { useSpeechToTextFallback } from '../../hooks/useSpeechToTextFallback';
 import { reviewFlashcard } from '../../../infrastructure/api/talk2meApi';
 import { ScoreGauges } from '../exercises/ScoreGauges';
 import { WordScoreDisplay } from '../exercises/WordScoreDisplay';
+import { ModelDownloadPromptModal } from '../exercises/ModelDownloadPromptModal';
 
 interface PronunciationModePlayerProps {
   set: FlashcardSet;
@@ -35,7 +38,6 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
-  const [recognizedText, setRecognizedText] = useState<string>('');
   const [hasEvaluated, setHasEvaluated] = useState(false);
   const [masteredCount, setMasteredCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -44,19 +46,26 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordedAudioRef = useRef<HTMLAudioElement | null>(null);
-  const recognitionRef = useRef<any>(null);
 
   const currentCard = cards[currentIndex] || cards[0];
 
   // AI Pronunciation Scorer Hook
-  const { 
-    status: scorerStatus, 
-    loadProgress, 
-    result: scoringResult, 
-    error: scorerError, 
-    scoreAudio, 
-    reset: resetScorer 
+  const {
+    status: scorerStatus,
+    loadProgress,
+    result: scoringResult,
+    error: scorerError,
+    scoreAudio,
+    preload: preloadScorer,
+    reset: resetScorer
   } = usePronunciationScorer();
+  const pronGate = useAiResourceGate('pronunciation', preloadScorer);
+
+  // Default mode when the AI model hasn't been downloaded: browser-native speech-to-text
+  // shows what the user said next to the target word for manual comparison — no automatic
+  // scoring. Replaces the old "supplementary transcript" SpeechRecognition call that used to
+  // run unconditionally alongside the ML pipeline.
+  const fallbackStt = useSpeechToTextFallback();
 
   // Create & revoke object URL for user audio recording
   useEffect(() => {
@@ -71,7 +80,8 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
 
   // Native-speaker playback of the target word — this is exactly the use case Kokoro's
   // natural voice most improves on over the browser's robotic speechSynthesis.
-  const { speak: speakNative } = useTextToSpeech();
+  const { speak: speakNative, preload: preloadTts } = useTextToSpeech();
+  const ttsGate = useAiResourceGate('tts', preloadTts);
 
   // Play user recorded audio
   const playUserAudio = () => {
@@ -87,9 +97,9 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
     if (index < 0 || index >= totalCount) return;
     setIsRecording(false);
     setRecordedBlob(null);
-    setRecognizedText('');
     setHasEvaluated(false);
     resetScorer();
+    fallbackStt.reset();
     setCurrentIndex(index);
   };
 
@@ -122,6 +132,14 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
 
   // Start Mic Recording
   const startRecording = async () => {
+    // Default mode (AI model not downloaded): browser STT only, no MediaRecorder/blob needed.
+    if (!pronGate.isAvailable) {
+      setHasEvaluated(false);
+      fallbackStt.start();
+      setIsRecording(true);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
@@ -139,25 +157,6 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
         await runScoring(audioBlob);
       };
 
-      // Optional Browser Speech Recognition for instant recognized transcript
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        try {
-          const rec = new SpeechRecognition();
-          rec.lang = 'en-US';
-          rec.continuous = false;
-          rec.interimResults = false;
-          rec.onresult = (e: any) => {
-            const transcript = e.results[0]?.[0]?.transcript || '';
-            setRecognizedText(transcript);
-          };
-          recognitionRef.current = rec;
-          rec.start();
-        } catch {
-          // Fallback gracefully
-        }
-      }
-
       mediaRecorderRef.current.start();
       setIsRecording(true);
       setHasEvaluated(false);
@@ -169,14 +168,16 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
 
   // Stop Mic Recording
   const stopRecording = () => {
+    if (!pronGate.isAvailable) {
+      fallbackStt.stop();
+      setIsRecording(false);
+      setHasEvaluated(true);
+      return;
+    }
+
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-    }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
     }
   };
 
@@ -206,6 +207,15 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
             <span className="text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
               Từ {currentIndex + 1} / {totalCount}
             </span>
+
+            {!pronGate.isAvailable && (
+              <span
+                className="text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30"
+                title="Chưa tải AI chấm điểm phát âm — đang dùng chế độ so sánh transcript cơ bản"
+              >
+                Chế độ cơ bản
+              </span>
+            )}
 
             <button
               type="button"
@@ -270,7 +280,11 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
           {/* Recording & Mic Button Area */}
           <div className="py-4 space-y-4">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              {isRecording
+              {!pronGate.isAvailable && isRecording
+                ? '🎙️ Đang nghe... Hãy phát âm rõ từ trên!'
+                : !pronGate.isAvailable && hasEvaluated
+                ? '📝 Đã ghi nhận — tự so sánh với từ gốc bên dưới'
+                : isRecording
                 ? '🎙️ Đang ghi âm... Hãy phát âm rõ từ trên!'
                 : isScoring
                 ? '🧠 AI đang phân tích âm thanh & chấm điểm phát âm...'
@@ -278,6 +292,12 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
                 ? '✅ Phân tích hoàn tất — xem điểm & phát âm lại nếu muốn'
                 : 'Nhấn nút Micro bên dưới để bắt đầu ghi âm phát âm'}
             </p>
+
+            {!pronGate.isAvailable && fallbackStt.unsupported && (
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-semibold text-center">
+                Trình duyệt này không hỗ trợ nhận diện giọng nói. Hãy thử Google Chrome, hoặc tải Model AI ở trang Quản Lý Tài Nguyên để chấm điểm chính xác.
+              </div>
+            )}
 
             {/* Waveform graphic when recording */}
             {isRecording && (
@@ -340,10 +360,26 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
             </div>
           </div>
 
+          {/* Basic-mode result: transcript vs target, no automatic scoring */}
+          {!pronGate.isAvailable && hasEvaluated && (
+            <div className="p-5 rounded-3xl bg-slate-50 dark:bg-[#0F172A] border border-[#E4E8F0] dark:border-[#334155] space-y-3 text-left animate-in fade-in duration-300">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Bạn đã nói:</p>
+                <p className="text-sm font-mono text-[#1B1F2E] dark:text-slate-200 bg-white dark:bg-slate-800 rounded-xl px-3.5 py-2 border border-slate-200 dark:border-slate-700 mt-1">
+                  "{fallbackStt.transcript || '(không nhận diện được)'}"
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Từ gốc:</p>
+                <p className="text-sm font-bold text-[#1B1F2E] dark:text-slate-200 mt-1">{currentCard.frontText}</p>
+              </div>
+            </div>
+          )}
+
           {/* AI SCORING EVALUATION RESULT PANEL */}
-          {hasEvaluated && scoringResult && (
+          {pronGate.isAvailable && hasEvaluated && scoringResult && (
             <div className="p-6 rounded-3xl bg-slate-50 dark:bg-[#0F172A] border border-[#E4E8F0] dark:border-[#334155] space-y-5 text-left animate-in fade-in duration-300">
-              
+
               {/* Score Gauges */}
               <ScoreGauges
                 overallScore={scoringResult.overallScore}
@@ -357,7 +393,7 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
                   Hệ thống AI nghe được bạn phát âm:
                 </p>
                 <p className="text-sm font-mono text-[#1B1F2E] dark:text-slate-200 bg-white dark:bg-slate-800 rounded-xl px-3.5 py-2 border border-slate-200 dark:border-slate-700">
-                  "{scoringResult.recognizedTranscript || recognizedText || currentCard.frontText}"
+                  "{scoringResult.recognizedTranscript || currentCard.frontText}"
                 </p>
               </div>
 
@@ -373,7 +409,7 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
           )}
 
           {/* Error fallback */}
-          {hasEvaluated && scorerError && !scoringResult && (
+          {pronGate.isAvailable && hasEvaluated && scorerError && !scoringResult && (
             <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-semibold text-center flex items-center justify-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>Chấm điểm AI tạm thời không phản hồi ({scorerError}). Bạn vẫn có thể luyện tập tiếp!</span>
@@ -410,6 +446,19 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
         </div>
 
       </div>
+
+      <ModelDownloadPromptModal
+        isOpen={pronGate.isPromptOpen}
+        onClose={pronGate.closePrompt}
+        onGoToSettings={pronGate.goToSettings}
+        {...pronGate.modalProps}
+      />
+      <ModelDownloadPromptModal
+        isOpen={ttsGate.isPromptOpen}
+        onClose={ttsGate.closePrompt}
+        onGoToSettings={ttsGate.goToSettings}
+        {...ttsGate.modalProps}
+      />
     </div>
   );
 };

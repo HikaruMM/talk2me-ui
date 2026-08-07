@@ -17,6 +17,8 @@ import {
 import { FlashcardSet, Flashcard } from '../../../core/entities';
 import { reviewFlashcard } from '../../../infrastructure/api/talk2meApi';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { useAiResourceGate } from '../../hooks/useAiResourceGate';
+import { ModelDownloadPromptModal } from '../exercises/ModelDownloadPromptModal';
 
 interface LearnModePlayerProps {
   set: FlashcardSet;
@@ -59,7 +61,8 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
   const currentCard = queue[currentIdx] || cards[0];
 
   // Speak audio helper — all call sites in this file read English term text (frontText).
-  const { speak } = useTextToSpeech();
+  const { speak, preload } = useTextToSpeech();
+  const ttsGate = useAiResourceGate('tts', preload);
 
   // Shuffle array helper
   const shuffle = <T,>(arr: T[]): T[] => {
@@ -457,6 +460,13 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
           </div>
         </div>
       )}
+
+      <ModelDownloadPromptModal
+        isOpen={ttsGate.isPromptOpen}
+        onClose={ttsGate.closePrompt}
+        onGoToSettings={ttsGate.goToSettings}
+        {...ttsGate.modalProps}
+      />
 
       </div>
     </div>

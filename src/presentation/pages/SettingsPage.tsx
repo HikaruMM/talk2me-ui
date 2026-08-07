@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Key,
   Sparkles,
@@ -87,10 +88,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   }, []);
 
   const [activeTab, setActiveTab] = useState<'api' | 'resources'>('api');
+  const location = useLocation();
+  const autoDownload = (location.state as { autoDownload?: 'pronunciation' | 'tts' } | null)?.autoDownload;
 
   useEffect(() => {
-    // Check initial URL hash
-    if (window.location.hash === '#resources' || window.location.hash === '#resource-manager') {
+    // Check initial URL hash (or an autoDownload navigation state — see useAiResourceGate.tsx)
+    if (window.location.hash === '#resources' || window.location.hash === '#resource-manager' || autoDownload) {
       setActiveTab('resources');
     }
 
@@ -105,6 +108,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleToggleMode = (useCustom: boolean) => {
@@ -725,7 +729,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
           </div>
         </>
       ) : (
-        <ResourceManagerSection />
+        <ResourceManagerSection autoDownload={autoDownload} />
       )}
 
     </div>

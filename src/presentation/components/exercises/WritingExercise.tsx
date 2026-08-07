@@ -4,6 +4,8 @@ import { evaluateWriting } from '../../../infrastructure/api/talk2meApi';
 import { Sparkles, AlertTriangle, ArrowRight, Loader2, BookOpen, RotateCcw, Award, FileText, Lightbulb, Volume2 } from 'lucide-react';
 import { CompletedModeGate } from './CompletedModeGate';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { useAiResourceGate } from '../../hooks/useAiResourceGate';
+import { ModelDownloadPromptModal } from './ModelDownloadPromptModal';
 
 interface WritingExerciseProps {
   courseId: string;
@@ -26,7 +28,8 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
   const [evalError, setEvalError] = useState('');
   const [isRetrying, setIsRetrying] = useState(false);
   const [showHint, setShowHint] = useState(false);
-  const { speak } = useTextToSpeech();
+  const { speak, preload } = useTextToSpeech();
+  const ttsGate = useAiResourceGate('tts', preload);
 
   if (progress?.completed && !isRetrying && !evaluation) {
     return (
@@ -310,6 +313,13 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
 
         </div>
       )}
+
+      <ModelDownloadPromptModal
+        isOpen={ttsGate.isPromptOpen}
+        onClose={ttsGate.closePrompt}
+        onGoToSettings={ttsGate.goToSettings}
+        {...ttsGate.modalProps}
+      />
 
     </div>
   );

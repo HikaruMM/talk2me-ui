@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getDueFlashcardCount } from '../../infrastructure/api/talk2meApi';
 import { useAuth } from '../../application';
+import { PageLoadingSpinner } from '../components/common/LoadingSpinner';
 
 interface NotificationItem {
   id: string;
@@ -33,13 +34,26 @@ export const NotificationsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [dueCount, setDueCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'all' | 'reminder' | 'system' | 'community'>('all');
 
   useEffect(() => {
-    if (!user) return;
+    let isMounted = true;
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
     getDueFlashcardCount()
-      .then((res) => setDueCount(res.count))
-      .catch(() => setDueCount(0));
+      .then((res) => {
+        if (isMounted) setDueCount(res.count);
+      })
+      .catch(() => {
+        if (isMounted) setDueCount(0);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => { isMounted = false; };
   }, [user]);
 
   const initialNotifications: NotificationItem[] = [
@@ -130,6 +144,10 @@ export const NotificationsPage: React.FC = () => {
   });
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  if (isLoading) {
+    return <PageLoadingSpinner message="Đang tải danh sách thông báo..." />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F8FB] dark:bg-[#0F172A] text-[#1B1F2E] dark:text-[#F1F5F9] pb-24">

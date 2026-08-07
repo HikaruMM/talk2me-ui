@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   DownloadCloud,
   HardDrive,
@@ -24,7 +24,14 @@ import {
   deleteTtsModel,
 } from '../../../infrastructure/ai/ttsEngine';
 
-export const ResourceManagerSection: React.FC = () => {
+interface ResourceManagerSectionProps {
+  /** Set when the user arrived here by accepting a "download this AI model?" prompt
+   * elsewhere in the app (see useAiResourceGate.tsx) — auto-starts that download immediately
+   * instead of making them find and click the button themselves. */
+  autoDownload?: 'pronunciation' | 'tts';
+}
+
+export const ResourceManagerSection: React.FC<ResourceManagerSectionProps> = ({ autoDownload }) => {
   const [status, setStatus] = useState<ModelResourceStatus | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -156,6 +163,22 @@ export const ResourceManagerSection: React.FC = () => {
       setIsTtsDeleting(false);
     }
   };
+
+  // Auto-start the download the user just consented to (see useAiResourceGate.tsx) — no
+  // second manual click needed. Guarded by a ref since React can invoke effects twice in
+  // dev/StrictMode, and by the current downloaded state so this never re-downloads something
+  // the user already has.
+  const hasAutoTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!autoDownload || hasAutoTriggeredRef.current) return;
+    hasAutoTriggeredRef.current = true;
+    if (autoDownload === 'pronunciation' && !status?.downloaded) {
+      handleDownload();
+    } else if (autoDownload === 'tts' && !ttsDownloaded) {
+      handleTtsDownload();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDownload]);
 
   return (
     <div id="resource-manager-section" className="space-y-6 animate-in fade-in duration-200">

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Course, Category } from '../../core/entities';
 import { Search, Plus, ChevronDown } from 'lucide-react';
 import { CourseCard } from '../components/course';
+import { PageLoadingSpinner } from '../components/common/LoadingSpinner';
 
 interface CoursesPageProps {
   courses: Course[];
@@ -13,6 +14,7 @@ interface CoursesPageProps {
   onSelectCourse: (course: Course) => void;
   onCreateCourseClick: () => void;
   onDeleteCourse?: (course: Course) => void;
+  isLoading?: boolean;
 }
 
 export const CoursesPage: React.FC<CoursesPageProps> = ({
@@ -25,8 +27,13 @@ export const CoursesPage: React.FC<CoursesPageProps> = ({
   onSelectCourse,
   onCreateCourseClick,
   onDeleteCourse,
+  isLoading = false,
 }) => {
   const [visibleLimit, setVisibleLimit] = useState(6);
+
+  if (isLoading) {
+    return <PageLoadingSpinner message="Đang tải danh sách khóa học..." />;
+  }
 
   // Filter courses by category & search term
   const filteredCourses = courses.filter((c) => {

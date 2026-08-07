@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { CompletedModeGate } from './CompletedModeGate';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { useAiResourceGate } from '../../hooks/useAiResourceGate';
+import { ModelDownloadPromptModal } from './ModelDownloadPromptModal';
 
 interface SpeakingExerciseProps {
   courseId: string;
@@ -45,7 +47,8 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   ]);
 
   const recognitionRef = useRef<any>(null);
-  const { speak: speakText } = useTextToSpeech();
+  const { speak: speakText, preload } = useTextToSpeech();
+  const ttsGate = useAiResourceGate('tts', preload);
 
   if (progress?.completed && !isRetrying && !evaluation) {
     return (
@@ -505,6 +508,13 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
         </div>
 
       </div>
+
+      <ModelDownloadPromptModal
+        isOpen={ttsGate.isPromptOpen}
+        onClose={ttsGate.closePrompt}
+        onGoToSettings={ttsGate.goToSettings}
+        {...ttsGate.modalProps}
+      />
 
     </div>
   );
