@@ -30,9 +30,9 @@ let removed = 0;
 for (const file of readdirSync(DIST_ASSETS)) {
   if (!file.endsWith('.wasm')) continue;
   const full = join(DIST_ASSETS, file);
-  if (ortWasmSizes.has(statSync(full).size)) {
+  if (file.includes('ort-wasm') || ortWasmSizes.has(statSync(full).size)) {
     unlinkSync(full);
-    console.log(`[strip-duplicate-ort-wasm] removed unused ${file} (served from backend instead)`);
+    console.log(`[strip-duplicate-ort-wasm] removed unused ${file} (served via CDN)`);
     removed++;
   }
 }
