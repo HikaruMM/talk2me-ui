@@ -82,12 +82,25 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
 
   const canDelete = Boolean(user && (onDeleteCourse || (course.userId && course.userId === user.id)));
 
+  // Only visible while the user is actively scrolling — fades back out ~1.2s after the
+  // last scroll event (standing still), instead of staying pinned onscreen the whole time
+  // once past the threshold.
   useEffect(() => {
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
     const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 250);
+      if (window.scrollY > 250) {
+        setShowScrollTop(true);
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => setShowScrollTop(false), 1200);
+      } else {
+        setShowScrollTop(false);
+      }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (hideTimer) clearTimeout(hideTimer);
+    };
   }, []);
 
   const handleDeleteCourse = async () => {
@@ -431,16 +444,19 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
         </div>
       )}
 
-      {/* FLOATING SCROLL TO TOP BUTTON */}
-      {showScrollTop && (
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40 p-3 rounded-full bg-[#2E68FF] hover:bg-blue-600 text-white shadow-xl hover:scale-110 active:scale-95 transition-all duration-200 flex items-center justify-center border border-blue-400/30"
-          title="Cuộn lên đầu trang"
-        >
-          <ArrowUp className="w-5 h-5 stroke-[2.5px]" />
-        </button>
-      )}
+      {/* FLOATING SCROLL TO TOP BUTTON — kept mounted so opacity/scale can transition
+          smoothly on both show and hide, instead of popping in/out instantly. */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className={`fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40 p-3 rounded-full bg-[#2E68FF] hover:bg-blue-600 text-white shadow-xl hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center border border-blue-400/30 ${
+          showScrollTop ? 'opacity-100 scale-100' : 'opacity-0 scale-75 pointer-events-none'
+        }`}
+        title="Cuộn lên đầu trang"
+        aria-hidden={!showScrollTop}
+        tabIndex={showScrollTop ? 0 : -1}
+      >
+        <ArrowUp className="w-5 h-5 stroke-[2.5px]" />
+      </button>
 
     </div>
   );
