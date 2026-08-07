@@ -230,20 +230,11 @@ function AppContent() {
   };
 
   // Callers (HeaderTopNav/BottomNav/MobileDrawer) already `navigate()` to the tab's route
-  // themselves right alongside this call — this only needs to apply the auth gate for the
-  // two protected tabs; everything else is a no-op now that nav highlighting reads the URL
-  // directly instead of mirrored `currentTab` state.
-  const handleTabChange = (tab: string) => {
-    if (tab === 'progress' || tab === 'settings') {
-      requireAuth(
-        () => navigate(tab === 'progress' ? '/progress' : '/settings'),
-        tab === 'progress' ? 'Báo cáo tiến độ học tập cá nhân' : 'Cài đặt tài khoản & Key AI',
-        tab === 'progress'
-          ? 'Vui lòng đăng nhập để theo dõi tổng thời gian học, chuỗi ngày liên tiếp và biểu đồ ghi nhớ cá nhân.'
-          : 'Vui lòng đăng nhập để quản lý API Key và thông tin cấu hình tài khoản.'
-      );
-    }
-  };
+  // themselves right alongside this call, and guest-gating for protected pages is handled
+  // by each page's own RequireAuthGate (AnalyticsPage/SettingsPage/FlashcardsPage) — no
+  // separate popup here anymore (it used to fire *in addition to* the page's own gate,
+  // showing the same "please log in" message twice).
+  const handleTabChange = (_tab: string) => {};
 
   // Filter public demo courses for HomePage
   const filteredPublicCourses = publicCourses.filter((c) => {
