@@ -33,11 +33,14 @@ export const useLoginMutation = () => {
       if (!res.ok) {
         throw new Error(data.detail || 'Mật khẩu không chính xác.');
       }
-      return data as { access_token: string; user: UserProfile };
+      return data as { access_token: string; refresh_token: string; user: UserProfile };
     },
     onSuccess: (data) => {
       if (data.access_token) {
         localStorage.setItem('talk2me_jwt_token', data.access_token);
+      }
+      if (data.refresh_token) {
+        localStorage.setItem('talk2me_refresh_token', data.refresh_token);
       }
       queryClient.setQueryData(['currentUser'], data.user);
     },
@@ -57,11 +60,14 @@ export const useRegisterMutation = () => {
       if (!res.ok) {
         throw new Error(data.detail || 'Đăng ký thất bại.');
       }
-      return data as { access_token: string; user: UserProfile };
+      return data as { access_token: string; refresh_token: string; user: UserProfile };
     },
     onSuccess: (data) => {
       if (data.access_token) {
         localStorage.setItem('talk2me_jwt_token', data.access_token);
+      }
+      if (data.refresh_token) {
+        localStorage.setItem('talk2me_refresh_token', data.refresh_token);
       }
       queryClient.setQueryData(['currentUser'], data.user);
     },

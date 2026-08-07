@@ -27,7 +27,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   };
 
   return (
-    <div className="space-y-6 text-center max-w-6xl mx-auto">
+    <div className="space-y-3 text-center max-w-6xl mx-auto">
       {/* Eyebrow Tag */}
       <div>
         <span className="inline-block px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2E68FF] text-xs font-bold uppercase tracking-wider">
@@ -36,13 +36,13 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
       </div>
 
       {/* Main Title */}
-      <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1B1F2E] dark:text-white tracking-tight">
-        Discover AI-Powered Interactive Lessons
+      <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1B1F2E] dark:text-white tracking-tight">
+        AI-Powered Interactive Lessons
       </h2>
 
       {/* Description */}
-      <p className="text-sm sm:text-base text-[#5A6478] dark:text-[#CBD5E1] max-w-2xl mx-auto leading-relaxed">
-        Choose a sample course below or search by topic to start your personalized learning journey.
+      <p className="text-sm text-[#5A6478] dark:text-[#CBD5E1] max-w-lg mx-auto leading-relaxed">
+        Chọn khóa học mẫu hoặc tìm theo chủ đề để bắt đầu.
       </p>
 
       {/* Search Input Bar */}

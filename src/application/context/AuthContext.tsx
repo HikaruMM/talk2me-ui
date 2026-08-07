@@ -54,6 +54,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       authRepo.removeUser();
       localStorage.removeItem('talk2me_jwt_token');
+      localStorage.removeItem('talk2me_refresh_token');
       openAuthPopup('login', reason);
     };
 
@@ -74,6 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setUser(null);
           authRepo.removeUser();
           localStorage.removeItem('talk2me_jwt_token');
+          localStorage.removeItem('talk2me_refresh_token');
         });
     }
   }, []);
@@ -127,6 +129,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('talk2me_jwt_token');
+    localStorage.removeItem('talk2me_refresh_token');
   };
 
   return (

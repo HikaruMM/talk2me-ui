@@ -1,18 +1,56 @@
-import { KokoroTTS } from 'kokoro-js';
-import type { ProgressInfo } from '@huggingface/transformers';
+import type { FromWorkerMessage, ToWorkerMessage } from './ttsEngine.worker';
 
 // English only — Kokoro has no Vietnamese voice. Callers must only pass English text (see
 // call sites: flashcard front/term text, Writing/Speaking prompts, pronunciation practice —
 // never flashcard back/definition text, which is often Vietnamese and stays on the browser's
 // native speechSynthesis).
-const MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX';
-const VOICE = 'af_heart';
 const DOWNLOADED_AT_KEY = 'talk2me_tts_downloaded_at';
 
-// Module-level singleton — loaded once per page session, reused after that (mirrors
-// `cachedSession` in pronunciationScorer.ts).
-let cachedTts: KokoroTTS | null = null;
-let loadingPromise: Promise<KokoroTTS> | null = null;
+// Actual model loading + KokoroTTS.generate() runs in ttsEngine.worker.ts, off the main
+// thread — long synthesis calls no longer block UI rendering/input (previously long text
+// could run WASM inference on the main thread long enough for the browser to show a
+// "page unresponsive" prompt). This file is a thin RPC wrapper that preserves the exact
+// same exported function signatures as before the worker move, so no caller needs to change.
+let ttsWorker: Worker | null = null;
+let loadingPromise: Promise<void> | null = null;
+let nextRequestId = 1;
+const pendingSynthesis = new Map<number, { resolve: (blob: Blob) => void; reject: (err: Error) => void }>();
+
+function getWorker(): Worker {
+  if (ttsWorker) return ttsWorker;
+
+  const worker = new Worker(new URL('./ttsEngine.worker.ts', import.meta.url), { type: 'module' });
+
+  worker.addEventListener('message', (event: MessageEvent<FromWorkerMessage>) => {
+    const msg = event.data;
+    if (msg.type === 'synthesize-done') {
+      pendingSynthesis.get(msg.requestId)?.resolve(msg.blob);
+      pendingSynthesis.delete(msg.requestId);
+    } else if (msg.type === 'synthesize-error') {
+      pendingSynthesis.get(msg.requestId)?.reject(new Error(msg.message));
+      pendingSynthesis.delete(msg.requestId);
+    }
+    // 'progress' / 'preload-done' / 'preload-error' are handled by the one-off listener
+    // registered inside preloadTtsModel() for the in-flight preload call, not here.
+  });
+
+  // The worker itself failing to load/parse is a new failure mode this file didn't have
+  // before (no worker = nothing to crash) — without this, any pending preload/synthesize
+  // promise would hang forever instead of rejecting into the existing browser-TTS fallback
+  // path in useTextToSpeech.ts.
+  worker.addEventListener('error', (event: ErrorEvent) => {
+    const err = new Error(event.message || 'TTS worker crashed');
+    for (const { reject } of pendingSynthesis.values()) reject(err);
+    pendingSynthesis.clear();
+  });
+
+  ttsWorker = worker;
+  return worker;
+}
+
+function postToWorker(message: ToWorkerMessage): void {
+  getWorker().postMessage(message);
+}
 
 // Repeat plays of the same text (very common — flashcards get replayed, users flip back and
 // forth) skip synthesis entirely. Small bound so a long session doesn't grow this forever.
@@ -25,53 +63,6 @@ function cacheAudio(text: string, blob: Blob): void {
     if (oldestKey !== undefined) audioCache.delete(oldestKey);
   }
   audioCache.set(text, blob);
-}
-
-async function loadModel(onProgress?: (percent: number) => void): Promise<KokoroTTS> {
-  const progress_callback = (progress: ProgressInfo) => {
-    if (progress.status === 'progress' && onProgress) {
-      onProgress(Math.round(progress.progress));
-    }
-  };
-
-  // WASM only — WebGPU was tried here but produced corrupted ("beeping") audio, most likely
-  // because Kokoro's vocoder uses ops (e.g. iSTFT) that aren't yet reliable on the WebGPU
-  // execution provider. WASM + int8 (q8) is the well-tested, correct-audio path.
-  return KokoroTTS.from_pretrained(MODEL_ID, {
-    dtype: 'q8',
-    device: 'wasm',
-    progress_callback,
-  });
-}
-
-async function getTts(onProgress?: (percent: number) => void): Promise<KokoroTTS> {
-  if (cachedTts) return cachedTts;
-  if (loadingPromise) return loadingPromise;
-
-  loadingPromise = loadModel(onProgress).then(async (tts) => {
-    cachedTts = tts;
-    try {
-      localStorage.setItem(DOWNLOADED_AT_KEY, new Date().toISOString());
-    } catch {
-      // localStorage unavailable (private mode etc.) — not fatal, just loses the "already
-      // downloaded" UI hint; the model itself is still cached by Transformers.js internally.
-    }
-    // ONNX Runtime compiles/optimizes its execution graph lazily on the FIRST inference —
-    // that one-time cost otherwise lands on the user's first real button click, making it
-    // feel much slower than every click after it. Absorb that cost here instead, during
-    // preload (which already has its own loading indicator), so every user-triggered
-    // synthesize call after this point runs at full (already-warm) speed.
-    try {
-      await tts.generate('Hello', { voice: VOICE });
-    } catch (err) {
-      console.warn('[TextToSpeech] Warm-up synthesis failed (non-fatal):', err);
-    }
-    return tts;
-  }).finally(() => {
-    loadingPromise = null;
-  });
-
-  return loadingPromise;
 }
 
 export function isTtsModelDownloaded(): boolean {
@@ -91,16 +82,49 @@ export function getTtsDownloadedAt(): string | null {
 }
 
 export async function preloadTtsModel(onProgress?: (percent: number) => void): Promise<void> {
-  await getTts(onProgress);
+  if (loadingPromise !== null) return loadingPromise;
+
+  loadingPromise = new Promise<void>((resolve, reject) => {
+    const worker = getWorker();
+
+    const onMessage = (event: MessageEvent<FromWorkerMessage>) => {
+      const msg = event.data;
+      if (msg.type === 'progress') {
+        onProgress?.(msg.percent);
+      } else if (msg.type === 'preload-done') {
+        worker.removeEventListener('message', onMessage);
+        try {
+          localStorage.setItem(DOWNLOADED_AT_KEY, new Date().toISOString());
+        } catch {
+          // localStorage unavailable (private mode etc.) — not fatal, just loses the
+          // "already downloaded" UI hint; the model is still cached by the worker/browser.
+        }
+        resolve();
+      } else if (msg.type === 'preload-error') {
+        worker.removeEventListener('message', onMessage);
+        reject(new Error(msg.message));
+      }
+    };
+
+    worker.addEventListener('message', onMessage);
+    postToWorker({ type: 'preload' });
+  }).finally(() => {
+    loadingPromise = null;
+  });
+
+  return loadingPromise;
 }
 
 export async function synthesizeSpeech(text: string): Promise<Blob> {
   const cached = audioCache.get(text);
   if (cached) return cached;
 
-  const tts = await getTts();
-  const audio = await tts.generate(text, { voice: VOICE });
-  const blob = audio.toBlob();
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    const requestId = nextRequestId++;
+    pendingSynthesis.set(requestId, { resolve, reject });
+    postToWorker({ type: 'synthesize', requestId, text });
+  });
+
   cacheAudio(text, blob);
   return blob;
 }
@@ -109,7 +133,15 @@ export async function synthesizeSpeech(text: string): Promise<Blob> {
  * (default cache name `transformers-cache`) with no official public API to clear just this
  * model, so this clears that cache wholesale plus our own "downloaded" flag. */
 export async function deleteTtsModel(): Promise<void> {
-  cachedTts = null;
+  // Terminate the worker so its in-memory KokoroTTS instance is dropped too — otherwise
+  // the next synthesize call would keep using the already-loaded model even though its
+  // downloaded files were just cleared from Cache Storage below. A fresh worker is created
+  // lazily on the next call.
+  ttsWorker?.terminate();
+  ttsWorker = null;
+  for (const { reject } of pendingSynthesis.values()) reject(new Error('TTS model deleted'));
+  pendingSynthesis.clear();
+
   audioCache.clear();
   try {
     localStorage.removeItem(DOWNLOADED_AT_KEY);

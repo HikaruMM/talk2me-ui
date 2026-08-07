@@ -98,6 +98,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         if (data.access_token) {
           localStorage.setItem('talk2me_jwt_token', data.access_token);
         }
+        if (data.refresh_token) {
+          localStorage.setItem('talk2me_refresh_token', data.refresh_token);
+        }
         onLoginSuccess(data.user);
         onClose();
       } else {
@@ -141,6 +144,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (res.ok && data.user) {
         if (data.access_token) {
           localStorage.setItem('talk2me_jwt_token', data.access_token);
+        }
+        if (data.refresh_token) {
+          localStorage.setItem('talk2me_refresh_token', data.refresh_token);
         }
         onLoginSuccess(data.user);
         onClose();

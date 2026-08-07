@@ -13,7 +13,8 @@ interface HomePageProps {
   onSearchChange: (query: string) => void;
   onSelectCourse: (courseId: string) => void;
   onCreateCourseClick: () => void;
-  onExploreCourses?: () => void;
+  onExploreCourses: () => void;
+  onExploreFlashcards: () => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -26,13 +27,15 @@ export const HomePage: React.FC<HomePageProps> = ({
   onSelectCourse,
   onCreateCourseClick,
   onExploreCourses,
+  onExploreFlashcards,
 }) => {
   return (
-    <div className="space-y-12">
+    <div className="space-y-8 lg:space-y-12">
       {/* Hero Header */}
-      <HeroSection 
-        onOpenCreateModal={onCreateCourseClick} 
+      <HeroSection
+        onOpenCreateModal={onCreateCourseClick}
         onExploreCourses={onExploreCourses}
+        onExploreFlashcards={onExploreFlashcards}
       />
 
       {/* Courses Catalog Section */}

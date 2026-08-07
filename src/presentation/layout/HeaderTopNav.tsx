@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 
 interface HeaderTopNavProps {
-  currentTab: string;
   setCurrentTab: (tab: string) => void;
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
@@ -35,7 +34,6 @@ interface HeaderTopNavProps {
 }
 
 export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
-  currentTab,
   setCurrentTab,
   darkMode,
   setDarkMode,
@@ -106,7 +104,12 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
             <nav className="hidden xl:flex items-center gap-1 bg-[#F1F4F9] dark:bg-[#273449] p-1.5 rounded-full border border-[#E4E8F0] dark:border-[#334155] shrink-0">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path || currentTab === item.id;
+                // Derive active state purely from the URL — path is always in sync (even
+                // right after F5, when `currentTab` state has reset to its default and
+                // would otherwise make "Home" look active on every other page).
+                const isActive = item.path === '/'
+                  ? location.pathname === '/'
+                  : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                 return (
                   <button
                     key={item.id}

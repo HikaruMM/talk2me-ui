@@ -41,31 +41,51 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
 
-export async function refreshTokenApi(): Promise<string | null> {
-  const token = localStorage.getItem(JWT_STORAGE_KEY);
-  if (!token) return null;
+async function doRefreshTokenApi(): Promise<string | null> {
+  const refreshToken = localStorage.getItem(REFRESH_STORAGE_KEY);
+  if (!refreshToken) return null;
 
   try {
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
     });
 
     if (!res.ok) return null;
     const data = await res.json();
-    if (data.access_token) {
+    if (data.access_token && data.refresh_token) {
       localStorage.setItem(JWT_STORAGE_KEY, data.access_token);
+      localStorage.setItem(REFRESH_STORAGE_KEY, data.refresh_token);
       return data.access_token;
     }
     return null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Refreshes the access token, coalescing concurrent callers onto a single in-flight
+ * request so simultaneous 401s don't race each other into a spurious logout.
+ */
+export function refreshTokenApi(): Promise<string | null> {
+  refreshPromise ??= doRefreshTokenApi().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+function forceLogout() {
+  localStorage.removeItem(JWT_STORAGE_KEY);
+  localStorage.removeItem(REFRESH_STORAGE_KEY);
+  window.dispatchEvent(
+    new CustomEvent('talk2me_unauthorized', {
+      detail: 'Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.',
+    })
+  );
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}, isRetry: boolean = false): Promise<T> {
@@ -81,37 +101,19 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, isRetry: boo
   if (res.status === 401) {
     // If it's an auth endpoint (login/register/refresh) or already retried once
     if (path.startsWith('/auth/login') || path.startsWith('/auth/register') || path.startsWith('/auth/refresh') || isRetry) {
-      localStorage.removeItem(JWT_STORAGE_KEY);
-      localStorage.removeItem('talk2me_user_profile');
-      window.dispatchEvent(
-        new CustomEvent('talk2me_unauthorized', {
-          detail: 'Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.',
-        })
-      );
+      forceLogout();
       const errorBody = await res.json().catch(() => ({}));
       throw new Error(errorBody.detail || 'Phiên đăng nhập đã hết hạn.');
     }
 
-    // Attempt token refresh once
-    if (!isRefreshing) {
-      isRefreshing = true;
-      const newToken = await refreshTokenApi();
-      isRefreshing = false;
-
-      if (newToken) {
-        // Retry original request with refreshed token
-        return apiFetch<T>(path, options, true);
-      }
+    // Attempt token refresh (shared across concurrent 401s), then retry once
+    const newToken = await refreshTokenApi();
+    if (newToken) {
+      return apiFetch<T>(path, options, true);
     }
 
     // Refresh failed -> logout & dispatch event
-    localStorage.removeItem(JWT_STORAGE_KEY);
-    localStorage.removeItem('talk2me_user_profile');
-    window.dispatchEvent(
-      new CustomEvent('talk2me_unauthorized', {
-        detail: 'Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.',
-      })
-    );
+    forceLogout();
     const errorBody = await res.json().catch(() => ({}));
     throw new Error(errorBody.detail || 'Phiên đăng nhập đã hết hạn.');
   }

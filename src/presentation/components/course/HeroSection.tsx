@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { ArrowRight, Sparkles, CheckCircle2, Play, Youtube } from 'lucide-react';
+import { ArrowRight, Sparkles, CheckCircle2, Play, Youtube, Layers } from 'lucide-react';
 
 interface HeroSectionProps {
   onOpenCreateModal: (prefillUrl?: string) => void;
   onExploreCourses: () => void;
+  onExploreFlashcards: () => void;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
   onOpenCreateModal,
   onExploreCourses,
+  onExploreFlashcards,
 }) => {
   const [youtubeUrl, setYoutubeUrl] = useState('');
 
@@ -22,7 +24,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   };
 
   return (
-    <section className="relative overflow-hidden pt-8 pb-16 lg:py-20 bg-gradient-to-b from-[#F7F8FB] via-white to-[#F7F8FB] dark:from-[#0F172A] dark:via-[#1E293B] dark:to-[#0F172A]">
+    <section className="relative overflow-hidden pt-8 pb-8 lg:py-20 bg-gradient-to-b from-[#F7F8FB] via-white to-[#F7F8FB] dark:from-[#0F172A] dark:via-[#1E293B] dark:to-[#0F172A]">
       
       {/* Decorative Background Accents */}
       <div className="absolute top-10 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-blue-400/10 dark:bg-blue-600/10 blur-3xl rounded-full pointer-events-none -z-10" />
@@ -70,29 +72,35 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               </button>
             </form>
 
-            {/* Quick Action Buttons */}
-            <div className="pt-2 flex flex-wrap items-center gap-4">
+            {/* Quick Action Buttons — course-creation itself is already covered by the
+                form above, so these two lead with the platform's other core surfaces
+                (course library, flashcards) instead of repeating "create a course" */}
+            <div className="pt-2 grid grid-cols-2 gap-3 sm:gap-4">
               <button
-                onClick={() => onOpenCreateModal()}
-                className="px-8 py-4 rounded-full bg-[#1B1F2E] hover:bg-[#2E68FF] dark:bg-[#2E68FF] dark:hover:bg-[#1E52DB] text-white text-sm font-bold flex items-center gap-3 shadow-xl transition-all"
+                type="button"
+                onClick={onExploreFlashcards}
+                className="justify-center px-4 py-3.5 sm:px-6 sm:py-4 rounded-full bg-[#1B1F2E] hover:bg-[#2E68FF] dark:bg-[#2E68FF] dark:hover:bg-[#1E52DB] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xl transition-all"
               >
-                <span>BẮT ĐẦU NGAY</span>
-                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
-                  <ArrowRight className="w-4 h-4" />
-                </div>
+                <Layers className="w-4 h-4 shrink-0" />
+                <span>Ôn Flashcard</span>
               </button>
 
               <button
+                type="button"
                 onClick={onExploreCourses}
-                className="px-6 py-4 rounded-full bg-white dark:bg-[#1E293B] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] text-[#1B1F2E] dark:text-[#F1F5F9] text-sm font-bold flex items-center gap-2 transition-all"
+                className="justify-center px-4 py-3.5 sm:px-6 sm:py-4 rounded-full bg-white dark:bg-[#1E293B] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] text-[#1B1F2E] dark:text-[#F1F5F9] text-xs sm:text-sm font-bold flex items-center gap-2 transition-all"
               >
-                <Play className="w-4 h-4 fill-[#2E68FF] text-[#2E68FF]" />
+                <Play className="w-4 h-4 fill-[#2E68FF] text-[#2E68FF] shrink-0" />
                 <span>Khám Phá Thư Viện</span>
               </button>
             </div>
 
-            {/* Feature Bullets */}
+            {/* Feature Bullets — flashcard mentioned first since it now has its own CTA above */}
             <div className="pt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-[#5A6478] dark:text-[#CBD5E1] font-semibold">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
+                <span>Thẻ từ vựng SRS thông minh</span>
+              </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
                 <span>Lý thuyết & Trắc nghiệm AI</span>
@@ -101,16 +109,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
                 <span>Nghe-Chép & Nhại giọng</span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
-                <span>Thẻ từ vựng SRS</span>
-              </div>
             </div>
 
           </div>
 
-          {/* Right Hero Image Column */}
-          <div className="lg:col-span-5 relative flex justify-center items-center">
+          {/* Right Hero Image Column — desktop only, hidden on mobile per design request */}
+          <div className="hidden lg:flex lg:col-span-5 relative justify-center items-center">
             
             {/* Main Portrait Container */}
             <div className="relative w-full max-w-md aspect-[4/5] rounded-[2.5rem] bg-gradient-to-tr from-blue-100 via-indigo-50 to-purple-100 dark:from-slate-800 dark:via-slate-900 dark:to-indigo-950 p-4 border border-white/60 dark:border-slate-800 shadow-2xl overflow-hidden group">

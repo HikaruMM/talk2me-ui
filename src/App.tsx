@@ -95,7 +95,6 @@ function AppContent() {
   const navigate = useNavigate();
   const deleteCourseMutation = useDeleteCourseMutation();
 
-  const [currentTab, setCurrentTab] = useState<string>('home');
   const [streakCount] = useState<number>(5);
   const [dueCount, setDueCount] = useState<number>(0);
 
@@ -222,7 +221,6 @@ function AppContent() {
 
   const handleCourseQueued = () => {
     setIsCreateModalOpen(false);
-    setCurrentTab('courses');
     navigate('/courses');
     setToastMessage('Đang tạo khoá học... Kết quả sẽ xuất hiện trong Khoá học của bạn.');
   };
@@ -231,20 +229,19 @@ function AppContent() {
     navigate(`/courses/${course.id}`);
   };
 
+  // Callers (HeaderTopNav/BottomNav/MobileDrawer) already `navigate()` to the tab's route
+  // themselves right alongside this call — this only needs to apply the auth gate for the
+  // two protected tabs; everything else is a no-op now that nav highlighting reads the URL
+  // directly instead of mirrored `currentTab` state.
   const handleTabChange = (tab: string) => {
     if (tab === 'progress' || tab === 'settings') {
       requireAuth(
-        () => {
-          setCurrentTab(tab);
-          navigate(tab === 'progress' ? '/progress' : '/settings');
-        },
+        () => navigate(tab === 'progress' ? '/progress' : '/settings'),
         tab === 'progress' ? 'Báo cáo tiến độ học tập cá nhân' : 'Cài đặt tài khoản & Key AI',
         tab === 'progress'
           ? 'Vui lòng đăng nhập để theo dõi tổng thời gian học, chuỗi ngày liên tiếp và biểu đồ ghi nhớ cá nhân.'
           : 'Vui lòng đăng nhập để quản lý API Key và thông tin cấu hình tài khoản.'
       );
-    } else {
-      setCurrentTab(tab);
     }
   };
 
@@ -261,7 +258,6 @@ function AppContent() {
       
       {/* Top Navigation Bar */}
       <HeaderTopNav
-        currentTab={currentTab}
         setCurrentTab={handleTabChange}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
@@ -289,6 +285,8 @@ function AppContent() {
                     onSearchChange={handleSearchChange}
                     onSelectCourse={(courseId) => navigate(`/courses/${courseId}`)}
                     onCreateCourseClick={handleOpenCreateModal}
+                    onExploreCourses={() => navigate('/courses')}
+                    onExploreFlashcards={() => navigate('/flashcards')}
                   />
                 </div>
               }
@@ -364,7 +362,6 @@ function AppContent() {
 
       {/* Mobile Fixed Bottom Navigation Bar */}
       <BottomNav
-        currentTab={currentTab}
         setCurrentTab={handleTabChange}
         dueCount={dueCount}
       />

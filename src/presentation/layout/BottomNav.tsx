@@ -9,13 +9,11 @@ import {
 } from 'lucide-react';
 
 interface BottomNavProps {
-  currentTab: string;
   setCurrentTab: (tab: string) => void;
   dueCount?: number;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
-  currentTab,
   setCurrentTab,
   dueCount = 0,
 }) => {
@@ -35,7 +33,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path || currentTab === item.id;
+          // Derive active state purely from the URL — see HeaderTopNav.tsx for why
+          // relying on the `currentTab` state instead breaks after a page refresh.
+          const isActive = item.path === '/'
+            ? location.pathname === '/'
+            : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
           return (
             <button
               key={item.id}
