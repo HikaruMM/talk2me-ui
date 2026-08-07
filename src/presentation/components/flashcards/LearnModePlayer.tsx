@@ -15,6 +15,8 @@ import {
   Minimize2
 } from 'lucide-react';
 import { FlashcardSet, Flashcard } from '../../../core/entities';
+import { reviewFlashcard } from '../../../infrastructure/api/talk2meApi';
+import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 
 interface LearnModePlayerProps {
   set: FlashcardSet;
@@ -56,15 +58,8 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
 
   const currentCard = queue[currentIdx] || cards[0];
 
-  // Speak audio helper
-  const speak = useCallback((text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      window.speechSynthesis.speak(utterance);
-    }
-  }, []);
+  // Speak audio helper — all call sites in this file read English term text (frontText).
+  const { speak } = useTextToSpeech();
 
   // Shuffle array helper
   const shuffle = <T,>(arr: T[]): T[] => {
@@ -131,6 +126,12 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
 
     setIsAnswered(true);
     setIsCorrect(correct);
+    // Correct/incorrect here is only binary, so it maps to the SM-2 "Good"/"Again" quality
+    // levels (4/1) — same split FlashcardPlayer's 4-button UI uses for its own known/learning
+    // buckets (app/services/srs.py treats quality<3 as a fail, >=3 as a pass).
+    reviewFlashcard(currentCard.id, correct ? 4 : 1).catch((err) =>
+      console.warn('Không lưu được kết quả ôn tập:', err)
+    );
 
     if (correct) {
       setMasteredCount((prev) => Math.min(totalCount, prev + 1));
@@ -146,6 +147,7 @@ export const LearnModePlayer: React.FC<LearnModePlayerProps> = ({ set, onFinish 
     setDontKnowRevealed(true);
     setIsAnswered(true);
     setIsCorrect(false);
+    reviewFlashcard(currentCard.id, 1).catch((err) => console.warn('Không lưu được kết quả ôn tập:', err));
     speak(currentCard.frontText);
     // Queue for re-testing
     setQueue((prev) => [...prev, currentCard]);

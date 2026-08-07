@@ -1,7 +1,8 @@
 import { getStoredConfig } from './gemini';
-import type { Course, WritingEvaluation, SpeakingEvaluation } from '../../core/entities';
+import { API_BASE_URL } from '../config';
+import type { Course, WritingEvaluation, SpeakingEvaluation, Flashcard, FlashcardSet, FlashcardFolder } from '../../core/entities';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = API_BASE_URL;
 const JWT_STORAGE_KEY = 'talk2me_jwt_token';
 
 interface LLMConfigPayload {
@@ -137,4 +138,103 @@ export function updateProgress(
     method: 'POST',
     body: JSON.stringify({ mode, completed, accuracy }),
   });
+}
+
+// ---- Flashcards (SRS) --------------------------------------------------------
+
+export type FlashcardFolderSummary = Omit<FlashcardFolder, 'setIds'>;
+export type FlashcardSetSummary = Omit<FlashcardSet, 'cards'>;
+
+export function getFlashcardFolders(): Promise<FlashcardFolderSummary[]> {
+  return apiFetch('/flashcards/folders');
+}
+
+export function createFlashcardFolder(data: {
+  name: string;
+  color?: string;
+  icon?: string;
+}): Promise<FlashcardFolderSummary> {
+  return apiFetch('/flashcards/folders', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function deleteFlashcardFolder(folderId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/flashcards/folders/${folderId}`, { method: 'DELETE' });
+}
+
+export function getFlashcardSets(): Promise<FlashcardSetSummary[]> {
+  return apiFetch('/flashcards/sets');
+}
+
+export function createFlashcardSet(data: {
+  title: string;
+  description?: string;
+  folderId?: string;
+  isPublic?: boolean;
+}): Promise<FlashcardSetSummary> {
+  return apiFetch('/flashcards/sets', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function deleteFlashcardSet(setId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/flashcards/sets/${setId}`, { method: 'DELETE' });
+}
+
+export function getFlashcardsInSet(setId: string): Promise<Flashcard[]> {
+  return apiFetch(`/flashcards/sets/${setId}/cards`);
+}
+
+export function createFlashcard(data: {
+  setId?: string;
+  frontText: string;
+  backText: string;
+  phonetic?: string;
+  exampleSentence?: string;
+  imageUrl?: string;
+  sourceVideoId?: string;
+  clipStartSec?: number;
+  clipEndSec?: number;
+}): Promise<Flashcard> {
+  return apiFetch('/flashcards/cards', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function deleteFlashcard(cardId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/flashcards/cards/${cardId}`, { method: 'DELETE' });
+}
+
+export function getDueFlashcards(setId?: string): Promise<Flashcard[]> {
+  const qs = setId ? `?setId=${encodeURIComponent(setId)}` : '';
+  return apiFetch(`/flashcards/due${qs}`);
+}
+
+export function getDueFlashcardCount(): Promise<{ count: number }> {
+  return apiFetch('/flashcards/due-count');
+}
+
+export function reviewFlashcard(cardId: string, quality: number): Promise<Flashcard> {
+  return apiFetch(`/flashcards/cards/${cardId}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ quality }),
+  });
+}
+
+// ---- Course categories (per-user) ---------------------------------------------------
+
+/** Raw wire shape from the backend — lacks the display-only badgeBg/badgeText fields that
+ * the full `Category` entity carries (those are derived client-side, see CourseContext.tsx). */
+export interface ApiCategory {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+export function getCategories(): Promise<ApiCategory[]> {
+  return apiFetch('/categories');
+}
+
+export function createCategory(data: { name: string; color?: string }): Promise<ApiCategory> {
+  return apiFetch('/categories', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function deleteCategory(categoryId: string): Promise<{ ok: boolean }> {
+  return apiFetch(`/categories/${categoryId}`, { method: 'DELETE' });
 }

@@ -1,10 +1,14 @@
-import React from 'react';
-import { PlayCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { PlayCircle, BookmarkPlus } from 'lucide-react';
 import { GrammarStructureItem } from '../../../core/entities';
+import { AddToFlashcardModal } from '../flashcards/AddToFlashcardModal';
 
 interface GrammarStructureListProps {
   items: GrammarStructureItem[];
   onPlay: (start: number, end: number) => void;
+  /** youtubeVideoId of the course — lets each row's "Add to Flashcard" action attach the
+   * matching video clip as evidence (optional, per-user choice in the modal). */
+  videoId?: string;
 }
 
 /**
@@ -12,8 +16,15 @@ interface GrammarStructureListProps {
  * content type, own fields), rendered the same fixed way in every lesson rather than left
  * to whatever the LLM felt like doing in freeform Markdown.
  */
-export const GrammarStructureList: React.FC<GrammarStructureListProps> = ({ items, onPlay }) => {
+export const GrammarStructureList: React.FC<GrammarStructureListProps> = ({ items, onPlay, videoId }) => {
+  const [addingItem, setAddingItem] = useState<GrammarStructureItem | null>(null);
+
   if (!items || items.length === 0) return null;
+
+  const clipFor = (item: GrammarStructureItem) =>
+    videoId && item.startTime != null && item.endTime != null
+      ? { videoId, startTime: item.startTime, endTime: item.endTime }
+      : undefined;
 
   return (
     <div className="my-6 -mx-2 sm:mx-0 overflow-x-auto rounded-2xl border border-[#E4E8F0] dark:border-[#334155] shadow-sm">
@@ -31,6 +42,9 @@ export const GrammarStructureList: React.FC<GrammarStructureListProps> = ({ item
             </th>
             <th className="px-3 sm:px-4 py-3 font-extrabold text-[11px] sm:text-xs uppercase tracking-wider text-purple-700 dark:text-purple-300 border-b-2 border-purple-200 dark:border-purple-800/60 text-center whitespace-nowrap">
               Nghe
+            </th>
+            <th className="px-3 sm:px-4 py-3 font-extrabold text-[11px] sm:text-xs uppercase tracking-wider text-purple-700 dark:text-purple-300 border-b-2 border-purple-200 dark:border-purple-800/60 text-center whitespace-nowrap">
+              Flashcard
             </th>
           </tr>
         </thead>
@@ -71,11 +85,30 @@ export const GrammarStructureList: React.FC<GrammarStructureListProps> = ({ item
                     <PlayCircle className="w-5 h-5" />
                   </button>
                 </td>
+                <td className="px-3 sm:px-4 py-3 align-top text-center">
+                  <button
+                    type="button"
+                    onClick={() => setAddingItem(item)}
+                    title="Thêm vào Flashcard"
+                    className="inline-flex items-center justify-center w-8 h-8 rounded-full text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/60 transition-colors"
+                  >
+                    <BookmarkPlus className="w-5 h-5" />
+                  </button>
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+
+      <AddToFlashcardModal
+        isOpen={!!addingItem}
+        onClose={() => setAddingItem(null)}
+        initialFrontText={addingItem?.pattern || ''}
+        initialBackText={addingItem?.explanation || ''}
+        initialExampleSentence={addingItem?.exampleSentence}
+        videoClip={addingItem ? clipFor(addingItem) : undefined}
+      />
     </div>
   );
 };

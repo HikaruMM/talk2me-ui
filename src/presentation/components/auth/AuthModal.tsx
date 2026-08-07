@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../../../core/entities';
 import { X, AlertCircle, Pencil, Eye, EyeOff } from 'lucide-react';
+import { API_BASE_URL } from '../../../infrastructure/config';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -29,7 +30,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const FASTAPI_URL = 'http://localhost:8000/api/v1/auth';
+  const FASTAPI_URL = `${API_BASE_URL}/auth`;
 
   const handleContinueEmail = async (e: React.FormEvent) => {
     e.preventDefault();

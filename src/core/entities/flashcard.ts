@@ -8,6 +8,11 @@ export interface Flashcard {
   phonetic?: string;
   exampleSentence?: string;
   imageUrl?: string;
+  // "Zero-cost" video evidence — only the YouTube video id + a start/end second range is
+  // stored, never a video file (see talk2me-ui/docs/modules/flashcard-srs.md).
+  sourceVideoId?: string;
+  clipStartSec?: number;
+  clipEndSec?: number;
   nextReviewDate?: string; // ISO date
   intervalDays?: number;
   easeFactor?: number;

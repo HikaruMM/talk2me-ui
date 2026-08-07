@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, FolderPlus, Check } from 'lucide-react';
 import { FlashcardFolder, FlashcardSet } from '../../../core/entities';
+import { createFlashcardFolder } from '../../../infrastructure/api/talk2meApi';
 
 interface FlashcardFolderModalProps {
   isOpen: boolean;
@@ -31,23 +32,34 @@ export const FlashcardFolderModal: React.FC<FlashcardFolderModalProps> = ({
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       alert('Vui lòng nhập tên thư mục!');
       return;
     }
 
-    const folder: FlashcardFolder = {
-      id: initialFolder?.id || `folder-${Date.now()}`,
-      name: name.trim(),
-      description: description.trim(),
-      color: initialFolder?.color || '#2E68FF',
-      createdAt: initialFolder?.createdAt || new Date().toISOString().split('T')[0],
-      setIds: selectedSetIds,
-    };
+    // Editing an existing folder, and the set<->folder association below, stay local-only —
+    // the backend only supports create/delete for folders (no update endpoint), and a set's
+    // folder is only settable at the set's own creation time.
+    if (initialFolder) {
+      const folder: FlashcardFolder = {
+        ...initialFolder,
+        name: name.trim(),
+        description: description.trim(),
+        setIds: selectedSetIds,
+      };
+      onSaveFolder(folder);
+      onClose();
+      return;
+    }
 
-    onSaveFolder(folder);
-    onClose();
+    try {
+      const created = await createFlashcardFolder({ name: name.trim(), color: '#2E68FF' });
+      onSaveFolder({ ...created, description: description.trim(), setIds: selectedSetIds });
+      onClose();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không thể tạo thư mục.');
+    }
   };
 
   return (
@@ -124,7 +136,7 @@ export const FlashcardFolderModal: React.FC<FlashcardFolderModalProps> = ({
                       <div className="space-y-0.5">
                         <span className="font-bold block text-xs">{set.title}</span>
                         <span className="text-[10px] text-slate-500 font-normal">
-                          {set.cards.length} thẻ ghi nhớ
+                          {set.cardsCount ?? set.cards.length} thẻ ghi nhớ
                         </span>
                       </div>
 

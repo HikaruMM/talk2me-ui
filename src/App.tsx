@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import { Course, Category, UserProfile } from './core/entities';
+import { Course, UserProfile } from './core/entities';
 import { INITIAL_CATEGORIES } from './infrastructure/data/mockCourses';
 import { 
   AuthProvider, 
@@ -13,8 +13,8 @@ import {
 } from './application';
 import { QueryProvider } from './application/providers/QueryProvider';
 import { useCoursesQuery, useDeleteCourseMutation } from './application/queries/useCoursesQuery';
-import { getCourseDetail } from './infrastructure/api/talk2meApi';
-import { HeaderTopNav, FooterSection } from './presentation/layout';
+import { getCourseDetail, getDueFlashcardCount } from './infrastructure/api/talk2meApi';
+import { HeaderTopNav, FooterSection, BottomNav } from './presentation/layout';
 import { AuthModal, AuthRequirementModal } from './presentation/components/auth';
 import { CreateCourseModal } from './presentation/components/course';
 import { Toast } from './presentation/components/common';
@@ -26,18 +26,20 @@ import {
   CommunityPage,
   SettingsPage,
   AuthPage,
-  CoursesPage
+  CoursesPage,
+  NotificationsPage
 } from './presentation/pages';
 
 function AppContent() {
   const { darkMode, setDarkMode } = useTheme();
   const { user, login, logout } = useAuth();
-  const { publicCourses, userCourses, categories, addCategory } = useCourses();
+  const { publicCourses, userCourses, categories, createCategory } = useCourses();
   const navigate = useNavigate();
   const deleteCourseMutation = useDeleteCourseMutation();
 
   const [currentTab, setCurrentTab] = useState<string>('home');
   const [streakCount] = useState<number>(5);
+  const [dueCount, setDueCount] = useState<number>(0);
 
   // Auth requirement modal state
   const [authModal, setAuthModal] = useState<{
@@ -63,6 +65,16 @@ function AppContent() {
 
   // Real, server-backed courses
   const { data: myCourses = [] } = useCoursesQuery(selectedCategory, searchQuery);
+
+  useEffect(() => {
+    if (!user) {
+      setDueCount(0);
+      return;
+    }
+    getDueFlashcardCount()
+      .then((res) => setDueCount(res.count))
+      .catch(() => setDueCount(0));
+  }, [user]);
 
   const handleDeleteCourse = async (target: Course | string) => {
     const courseId = typeof target === 'string' ? target : target.id;
@@ -155,15 +167,23 @@ function AppContent() {
     setCurrentTab('course-detail');
   };
 
-  const handleCreateCategory = (name: string) => {
-    const newCat: Category = {
-      id: name.toLowerCase().replace(/\s+/g, '-'),
-      name,
-      color: '#2E68FF',
-      badgeBg: 'bg-blue-100 dark:bg-blue-900/40',
-      badgeText: 'text-blue-600 dark:text-blue-400',
-    };
-    addCategory(newCat);
+  const handleTabChange = (tab: string) => {
+    if (tab === 'progress' || tab === 'settings') {
+      requireAuth(
+        () => {
+          setActiveCourse(null);
+          setCurrentTab(tab);
+          navigate(tab === 'progress' ? '/progress' : '/settings');
+        },
+        tab === 'progress' ? 'Báo cáo tiến độ học tập cá nhân' : 'Cài đặt tài khoản & Key AI',
+        tab === 'progress'
+          ? 'Vui lòng đăng nhập để theo dõi tổng thời gian học, chuỗi ngày liên tiếp và biểu đồ ghi nhớ cá nhân.'
+          : 'Vui lòng đăng nhập để quản lý API Key và thông tin cấu hình tài khoản.'
+      );
+    } else {
+      if (tab !== 'course-detail') setActiveCourse(null);
+      setCurrentTab(tab);
+    }
   };
 
   // Filter public demo courses for HomePage
@@ -180,24 +200,7 @@ function AppContent() {
       {/* Top Navigation Bar */}
       <HeaderTopNav
         currentTab={currentTab}
-        setCurrentTab={(tab) => {
-          if (tab === 'progress' || tab === 'settings') {
-            requireAuth(
-              () => {
-                setActiveCourse(null);
-                setCurrentTab(tab);
-                navigate(tab === 'progress' ? '/progress' : '/settings');
-              },
-              tab === 'progress' ? 'Báo cáo tiến độ học tập cá nhân' : 'Cài đặt tài khoản & Key AI',
-              tab === 'progress'
-                ? 'Vui lòng đăng nhập để theo dõi tổng thời gian học, chuỗi ngày liên tiếp và biểu đồ ghi nhớ cá nhân.'
-                : 'Vui lòng đăng nhập để quản lý API Key và thông tin cấu hình tài khoản.'
-            );
-          } else {
-            if (tab !== 'course-detail') setActiveCourse(null);
-            setCurrentTab(tab);
-          }
-        }}
+        setCurrentTab={handleTabChange}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         onOpenCreateModal={handleOpenCreateModal}
@@ -208,7 +211,7 @@ function AppContent() {
       />
 
       {/* Main Page Content Body with React Router Routes */}
-      <main className="flex-1">
+      <main className="flex-1 pb-20 xl:pb-0">
         <Routes>
           {/* HOME PAGE ROUTE (Displays Platform Public Demo Courses) */}
           <Route 
@@ -278,6 +281,9 @@ function AppContent() {
           {/* FLASHCARDS ROUTE */}
           <Route path="/flashcards" element={<FlashcardsPage />} />
 
+          {/* DEDICATED NOTIFICATIONS ROUTE */}
+          <Route path="/notifications" element={<NotificationsPage />} />
+
           {/* ANALYTICS / PROGRESS ROUTE */}
           <Route path="/progress" element={<AnalyticsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
@@ -317,8 +323,17 @@ function AppContent() {
         </Routes>
       </main>
 
-      {/* Footer Section */}
-      <FooterSection />
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <BottomNav
+        currentTab={currentTab}
+        setCurrentTab={handleTabChange}
+        dueCount={dueCount}
+      />
+
+      {/* Footer Section (Desktop View) */}
+      <div className="hidden xl:block">
+        <FooterSection />
+      </div>
 
       {/* Auth Modal Popup */}
       <AuthModal
@@ -336,7 +351,7 @@ function AppContent() {
         categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
         onCourseQueued={handleCourseQueued}
         prefillUrl={prefillUrl}
-        onCreateCategory={handleCreateCategory}
+        onCreateCategory={createCategory}
       />
 
       {/* Auth Requirement Modal for Protected Features */}

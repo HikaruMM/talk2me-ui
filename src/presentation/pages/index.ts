@@ -6,3 +6,4 @@ export * from './CommunityPage';
 export * from './SettingsPage';
 export * from './AuthPage';
 export * from './CoursesPage';
+export * from './NotificationsPage';

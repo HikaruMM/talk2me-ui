@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShadowingLine, ModeProgress, WordScore } from '../../../core/entities';
-import { Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2, Upload, PlayCircle, Video } from 'lucide-react';
+import { 
+  Mic, Square, Volume2, ArrowRight, RotateCcw, SkipForward, Loader2, Upload, 
+  PlayCircle, Video, BookmarkPlus, CheckSquare, Layers, ChevronDown 
+} from 'lucide-react';
 import { updateProgress } from '../../../infrastructure/api/talk2meApi';
 import { CompletedModeGate } from './CompletedModeGate';
 import { useYoutubeSegmentPlayer } from '../../hooks/useYoutubeSegmentPlayer';
@@ -11,6 +14,7 @@ import { ModelDownloadPromptModal } from './ModelDownloadPromptModal';
 import { ScoreGauges } from './ScoreGauges';
 import { WordScoreDisplay } from './WordScoreDisplay';
 import { PhonemeBreakdown } from './PhonemeBreakdown';
+import { AddToFlashcardModal } from '../flashcards/AddToFlashcardModal';
 
 interface ShadowingExerciseProps {
   courseId: string;
@@ -36,8 +40,15 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
   const [hasEvaluated, setHasEvaluated] = useState(false);
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [isRetrying, setIsRetrying] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
+  const [showVideo, setShowVideo] = useState(true);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [isAddingToFlashcard, setIsAddingToFlashcard] = useState(false);
+
+  // Dynamic Scroll Fade Mask States for Captions
+  const captionsContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollTop, setCanScrollTop] = useState(false);
+  const [canScrollBottom, setCanScrollBottom] = useState(true);
+  const [isCaptionsSectionOpen, setIsCaptionsSectionOpen] = useState(true);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -45,8 +56,17 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
   const recordedAudioRef = useRef<HTMLAudioElement | null>(null);
   const { iframeRef, embedUrl, playSegment } = useYoutubeSegmentPlayer(youtubeVideoId);
 
-  // Object URL for playing back the user's own recording/upload — recreated whenever
-  // recordedBlob changes, and revoked on cleanup to avoid leaking memory across lines.
+  const handleCaptionsScroll = () => {
+    if (!captionsContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = captionsContainerRef.current;
+    setCanScrollTop(scrollTop > 5);
+    setCanScrollBottom(scrollTop + clientHeight < scrollHeight - 5);
+  };
+
+  useEffect(() => {
+    handleCaptionsScroll();
+  }, [lines, currentIndex]);
+
   useEffect(() => {
     if (!recordedBlob) {
       setRecordedAudioUrl(null);
@@ -71,7 +91,6 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
   // Pronunciation scorer
   const { status: scorerStatus, loadProgress, result: scoringResult, error: scorerError, scoreAudio, preload, reset: resetScorer } = usePronunciationScorer();
 
-  // Check if AI model is downloaded when component mounts
   useEffect(() => {
     isModelDownloaded().then((downloaded) => {
       if (downloaded) {
@@ -109,8 +128,6 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 
   const playSample = () => playSegment(currentLine.startTime, currentLine.endTime);
 
-  /** Shared by mic recording and the dev "upload WAV" test path — runs the exact same
-   * scoring pipeline regardless of where the audio blob came from. */
   const runScoring = async (blob: Blob) => {
     setRecordedBlob(blob);
     setCompletedLines((prev) => new Set(prev).add(currentIndex));
@@ -148,41 +165,25 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
     }
   };
 
-  /** Dev/test helper: lets you upload a real .wav recording instead of using the mic,
-   * to check whether the scoring pipeline is actually producing real analysis. */
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // reset so re-selecting the same file fires onChange again
-    if (!file) return;
-    await runScoring(file);
-  };
-
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
       setIsRecording(false);
-    } else if (isRecording) {
-      setIsRecording(false);
-      setHasEvaluated(true);
-      setCompletedLines((prev) => new Set(prev).add(currentIndex));
     }
   };
 
-  const goToLine = (idx: number) => {
-    setCurrentIndex(idx);
+  const handleNextLine = () => {
     setRecordedBlob(null);
     setHasEvaluated(false);
     setIsRecording(false);
     setSelectedWord(null);
     resetScorer();
-  };
 
-  const handleNext = () => {
     if (currentIndex < lines.length - 1) {
-      goToLine(currentIndex + 1);
+      setCurrentIndex((prev) => prev + 1);
     } else {
-      const finalScore = scoringResult?.overallScore ?? 90;
-      updateProgress(courseId, lessonId, 'shadowing', true, finalScore).catch((err) =>
+      updateProgress(courseId, lessonId, 'shadowing', true, 85).catch((err) =>
         console.warn('Không lưu được tiến độ Shadowing:', err)
       );
       onFinishShadowing();
@@ -201,14 +202,12 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
     setSelectedWord(selectedWord === wordId ? null : wordId);
   };
 
-  // Find the selected WordScore
   const selectedWordScore: WordScore | null = (() => {
     if (!selectedWord || !scoringResult) return null;
     const idx = parseInt(selectedWord.split('-').pop() || '0', 10);
     return scoringResult.wordAnalysis[idx] ?? null;
   })();
 
-  /* ── Waveform bars ── */
   const waveformBars = Array.from({ length: 24 }, (_, i) => {
     const heights = [14, 22, 10, 28, 16, 32, 12, 26, 18, 30, 8, 24, 20, 34, 14, 28, 10, 22, 16, 36, 12, 26, 20, 30];
     return heights[i % heights.length];
@@ -216,10 +215,31 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
 
   const isScoring = scorerStatus === 'scoring' || scorerStatus === 'loading-model';
 
-  return (
-    <div className="w-full space-y-5">
+  // Dynamic Responsive Grid Column Classes
+  const captionsColClass = !isCaptionsSectionOpen
+    ? 'order-2 lg:order-1 lg:col-span-1'
+    : showVideo
+    ? 'order-2 lg:order-1 lg:col-span-3'
+    : 'order-2 lg:order-1 lg:col-span-4';
 
-      {/* ── Model loading banner ── */}
+  const videoColClass = !showVideo
+    ? 'order-1 lg:order-2 lg:col-span-1'
+    : !isCaptionsSectionOpen
+    ? 'order-1 lg:order-2 lg:col-span-6'
+    : 'order-1 lg:order-2 lg:col-span-5';
+
+  const practiceColClass = (!isCaptionsSectionOpen && !showVideo)
+    ? 'order-3 lg:order-3 lg:col-span-10'
+    : !isCaptionsSectionOpen
+    ? 'order-3 lg:order-3 lg:col-span-5'
+    : !showVideo
+    ? 'order-3 lg:order-3 lg:col-span-7'
+    : 'order-3 lg:order-3 lg:col-span-4';
+
+  return (
+    <div className="w-full space-y-4">
+
+      {/* Model loading banner */}
       {scorerStatus === 'loading-model' && loadProgress < 100 && !isRecording && (
         <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 flex items-center gap-3">
           <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
@@ -237,28 +257,158 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
         </div>
       )}
 
-      {/* ── Video toggle bar ── */}
-      <div className="p-3 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs flex items-center justify-between">
-        <span className="px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300 font-extrabold text-xs">
-          🔁 Shadowing Studio
-        </span>
-        <button
-          onClick={() => setShowVideo(!showVideo)}
-          className="flex items-center gap-1.5 text-xs font-bold text-pink-600 hover:text-pink-700 bg-pink-50 dark:bg-pink-950/60 px-3 py-1.5 rounded-xl border border-pink-200 dark:border-pink-800 transition-colors"
-        >
-          <Video className="w-3.5 h-3.5" />
-          <span>{showVideo ? 'Ẩn Video' : 'Hiện Video bài học'}</span>
-        </button>
-      </div>
+      {/* DYNAMIC RESPONSIVE GRID WITH SMOOTH TRANSITIONS */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start transition-all duration-300 ease-in-out">
 
-      {/* ── Main 2-column layout ── */}
-      <div className={`grid grid-cols-1 ${showVideo ? 'lg:grid-cols-12' : ''} gap-5 items-start`}>
+        {/* 1. CAPTIONS LIST (Web/Tablet: Leftmost | Mobile: 2nd Order) */}
+        {!isCaptionsSectionOpen ? (
+          <div className={`${captionsColClass} transition-all duration-300 ease-in-out bg-white dark:bg-[#1E293B] p-3 rounded-3xl border border-[#E4E8F0] dark:border-[#334155] shadow-xs lg:sticky lg:top-20 flex lg:flex-col items-center justify-between animate-in fade-in zoom-in-95 duration-200`}>
+            <button
+              onClick={() => setIsCaptionsSectionOpen(true)}
+              className="w-full flex lg:flex-col items-center justify-center gap-2 p-2 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#2E68FF] dark:text-blue-400 font-extrabold text-xs hover:bg-blue-100 transition-colors"
+              title="Mở rộng danh sách Captions"
+            >
+              <Layers className="w-4 h-4 shrink-0" />
+              <span className="lg:[writing-mode:vertical-lr] lg:rotate-180 uppercase tracking-wider text-[10px] py-1 whitespace-nowrap">
+                CAPTIONS ({completedLines.size}/{lines.length})
+              </span>
+              <ChevronDown className="w-4 h-4 -rotate-90 lg:rotate-0 shrink-0" />
+            </button>
+          </div>
+        ) : (
+          <div className={`${captionsColClass} transition-all duration-300 ease-in-out bg-white dark:bg-[#1E293B] p-3.5 sm:p-4 rounded-3xl border border-[#E4E8F0] dark:border-[#334155] shadow-xs space-y-2 lg:sticky lg:top-20 animate-in fade-in zoom-in-95 duration-200`}>
+            <div className="flex items-center justify-between pb-2 border-b border-[#E4E8F0] dark:border-[#334155]">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-xs tracking-wider uppercase text-[#1B1F2E] dark:text-white">
+                  CAPTIONS ({completedLines.size}/{lines.length})
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950 text-pink-600 dark:text-pink-300 font-extrabold text-[10px]">
+                  {progressPercent}%
+                </span>
+              </div>
 
-        {/* ── LEFT: Video (hidden iframe always exists for playSegment) ── */}
-        {showVideo && (
-          <div className="lg:col-span-5 lg:sticky lg:top-20">
+              <button
+                onClick={() => setIsCaptionsSectionOpen(false)}
+                className="flex items-center gap-1 text-xs font-bold text-[#2E68FF] bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 px-2.5 py-1 rounded-xl transition-colors border border-blue-200/60 dark:border-blue-800/60"
+              >
+                <span>Ẩn</span>
+                <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+              </button>
+            </div>
+
+            <div className="relative animate-in fade-in duration-150">
+              {canScrollTop && (
+                <div className="pointer-events-none absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-white dark:from-[#1E293B] to-transparent z-10 animate-in fade-in duration-150" />
+              )}
+
+              <div
+                ref={captionsContainerRef}
+                onScroll={handleCaptionsScroll}
+                className="space-y-1.5 max-h-40 lg:max-h-[480px] overflow-y-auto py-1 px-0.5 scrollbar-thin"
+                style={{
+                  maskImage: canScrollTop && canScrollBottom
+                    ? 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)'
+                    : canScrollTop
+                    ? 'linear-gradient(to bottom, transparent 0%, black 16px, black 100%)'
+                    : canScrollBottom
+                    ? 'linear-gradient(to bottom, black 0%, black calc(100% - 16px), transparent 100%)'
+                    : 'none',
+                  WebkitMaskImage: canScrollTop && canScrollBottom
+                    ? 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)'
+                    : canScrollTop
+                    ? 'linear-gradient(to bottom, transparent 0%, black 16px, black 100%)'
+                    : canScrollBottom
+                    ? 'linear-gradient(to bottom, black 0%, black calc(100% - 16px), transparent 100%)'
+                    : 'none'
+                }}
+              >
+                {lines.map((line, idx) => {
+                  const isActive = currentIndex === idx;
+                  const isDone = completedLines.has(idx);
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => {
+                        setCurrentIndex(idx);
+                        handleRetryLine();
+                        playSegment(line.startTime, line.endTime);
+                      }}
+                      className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-2 text-xs ${
+                        isActive
+                          ? 'border-2 border-pink-500 bg-pink-50/80 dark:bg-pink-950/40 shadow-xs'
+                          : 'border border-[#E4E8F0] dark:border-[#334155] bg-[#F8FAFC] dark:bg-[#0F172A] hover:border-pink-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2 flex-1">
+                        {isDone ? (
+                          <CheckSquare className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                        )}
+                        <div className="space-y-0.5">
+                          <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 leading-relaxed break-words block">
+                            #{idx + 1} - {line.sampleText}
+                          </span>
+                          {line.phoneticText && (
+                            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 block">
+                              {line.phoneticText}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {canScrollBottom && (
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-white dark:from-[#1E293B] to-transparent z-10 animate-in fade-in duration-150" />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 2. VIDEO PLAYER SECTION (Web/Tablet: Middle | Mobile: 1st Order) */}
+        {!showVideo ? (
+          <div className={`${videoColClass} transition-all duration-300 ease-in-out bg-white dark:bg-[#1E293B] p-3 rounded-3xl border border-[#E4E8F0] dark:border-[#334155] shadow-xs lg:sticky lg:top-20 flex lg:flex-col items-center justify-between animate-in fade-in zoom-in-95 duration-200`}>
+            <button
+              onClick={() => setShowVideo(true)}
+              className="w-full flex lg:flex-col items-center justify-center gap-2 p-2 rounded-2xl bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 font-extrabold text-xs hover:bg-pink-100 transition-colors"
+              title="Mở lại Video bài học"
+            >
+              <Video className="w-4 h-4 shrink-0" />
+              <span className="lg:[writing-mode:vertical-lr] lg:rotate-180 uppercase tracking-wider text-[10px] py-1 whitespace-nowrap">
+                VIDEO BÀI HỌC
+              </span>
+              <ChevronDown className="w-4 h-4 -rotate-90 lg:rotate-0 shrink-0" />
+            </button>
             {embedUrl && (
-              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-lg">
+              <iframe
+                ref={iframeRef}
+                src={embedUrl}
+                title="YouTube Video Player"
+                className="hidden"
+              />
+            )}
+          </div>
+        ) : (
+          <div className={`${videoColClass} transition-all duration-300 ease-in-out bg-white dark:bg-[#1E293B] rounded-3xl border border-[#E4E8F0] dark:border-[#334155] shadow-xs overflow-hidden p-3.5 sm:p-4 space-y-3 lg:sticky lg:top-20 animate-in fade-in zoom-in-95 duration-200`}>
+            <div className="flex items-center justify-between px-1">
+              <span className="px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300 font-extrabold text-xs">
+                🔁 Shadowing Studio
+              </span>
+              <button
+                onClick={() => setShowVideo(false)}
+                className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-xl text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/60 hover:bg-pink-100 transition-colors border border-pink-200/60 dark:border-pink-800/60"
+              >
+                <Video className="w-3.5 h-3.5" />
+                <span>Ẩn Video</span>
+              </button>
+            </div>
+
+            {embedUrl && (
+              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-md border border-slate-800 relative animate-in fade-in duration-150">
                 <iframe
                   ref={iframeRef}
                   src={embedUrl}
@@ -271,22 +421,11 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
             )}
           </div>
         )}
-        {/* Hidden iframe for playSegment when video panel is collapsed */}
-        {!showVideo && embedUrl && (
-          <iframe
-            ref={iframeRef}
-            src={embedUrl}
-            title="YouTube Video Player"
-            className="hidden"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          />
-        )}
 
-        {/* ── RIGHT: Main practice area ── */}
-        <div className={`${showVideo ? 'lg:col-span-7' : ''} space-y-5`}>
-
-          {/* ① HERO: Recording area */}
-          <div className={`p-6 sm:p-8 rounded-3xl border transition-all duration-300 ${
+        {/* 3. PRACTICE & SCORING AREA (Web/Tablet: Rightmost | Mobile: 3rd Order) */}
+        <div className={`${practiceColClass} transition-all duration-300 ease-in-out space-y-4`}>
+          {/* HERO: Recording area */}
+          <div className={`p-5 sm:p-6 rounded-3xl border transition-all duration-300 ${
             isRecording
               ? 'bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/30 dark:to-pink-950/30 border-pink-300 dark:border-pink-700 shadow-lg shadow-pink-500/10'
               : isScoring
@@ -297,11 +436,22 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
           }`}>
 
             {/* Current sentence */}
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-900/40 text-pink-600 dark:text-pink-300 mb-3">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest">
-                  Line {currentIndex + 1} / {lines.length}
-                </span>
+            <div className="text-center mb-5">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-900/40 text-pink-600 dark:text-pink-300">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest">
+                    Line {currentIndex + 1} / {lines.length}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingToFlashcard(true)}
+                  title="Thêm câu này vào Flashcard"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2E68FF] dark:text-blue-300 text-[10px] font-extrabold hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+                >
+                  <BookmarkPlus className="w-3 h-3" />
+                  <span>Thêm vào Flashcard</span>
+                </button>
               </div>
 
               {/* Word-level color display (when scored) or plain text */}
@@ -314,7 +464,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                   />
                 </div>
               ) : (
-                <h3 className="text-lg sm:text-xl font-bold text-[#1B1F2E] dark:text-white leading-relaxed px-2">
+                <h3 className="text-base sm:text-lg font-bold text-[#1B1F2E] dark:text-white leading-relaxed px-2">
                   "{currentLine.sampleText}"
                 </h3>
               )}
@@ -327,7 +477,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
             </div>
 
             {/* Waveform visualizer */}
-            <div className="flex items-end justify-center gap-[3px] h-10 mb-4">
+            <div className="flex items-end justify-center gap-[3px] h-9 mb-4">
               {waveformBars.map((h, i) => (
                 <div
                   key={i}
@@ -352,7 +502,7 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
               ))}
             </div>
 
-            <p className="text-center text-xs font-bold uppercase tracking-wider mb-5 text-[#5A6478] dark:text-[#94A3B8]">
+            <p className="text-center text-xs font-bold uppercase tracking-wider mb-4 text-[#5A6478] dark:text-[#94A3B8]">
               {isRecording
                 ? '🎙 Recording... Speak out loud!'
                 : isScoring
@@ -365,18 +515,18 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
             </p>
 
             {hasEvaluated && !scoringResult && scorerError && (
-              <div className="mb-5 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300 text-center">
+              <div className="mb-4 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300 text-center">
                 Không thể phân tích phát âm lần này ({scorerError}). Bạn vẫn có thể tiếp tục — điểm phần này sẽ không được ghi nhận chi tiết.
               </div>
             )}
 
             {/* Mic button + actions */}
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center justify-center gap-3">
               {hasEvaluated ? (
                 <>
                   <button
                     onClick={handleRetryLine}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-[#5A6478] dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-[#5A6478] dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Re-record</span>
@@ -384,15 +534,15 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
                   {recordedAudioUrl && (
                     <button
                       onClick={playRecordedAudio}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
                     >
                       <PlayCircle className="w-3.5 h-3.5" />
-                      <span>Nghe lại của bạn</span>
+                      <span>Nghe lại</span>
                     </button>
                   )}
                   <button
                     onClick={playSample}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-pink-600 dark:text-pink-300 hover:bg-pink-50 dark:hover:bg-pink-950/40 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-pink-600 dark:text-pink-300 hover:bg-pink-50 dark:hover:bg-pink-950/40 transition-colors"
                   >
                     <Volume2 className="w-3.5 h-3.5" />
                     <span>Compare</span>
@@ -401,147 +551,122 @@ export const ShadowingExercise: React.FC<ShadowingExerciseProps> = ({
               ) : isRecording ? (
                 <button
                   onClick={stopRecording}
-                  className="rounded-full bg-gradient-to-br from-red-500 to-rose-600 text-white flex items-center justify-center shadow-xl shadow-red-500/30 animate-pulse hover:scale-105 transition-transform"
-                  style={{ width: 72, height: 72 }}
+                  className="rounded-full bg-gradient-to-br from-red-500 to-rose-600 text-white flex items-center justify-center shadow-xl shadow-red-500/30 animate-pulse hover:scale-105 transition-transform cursor-pointer"
+                  style={{ width: 64, height: 64 }}
                 >
-                  <Square className="w-7 h-7 fill-white" />
+                  <Square className="w-6 h-6 fill-white" />
                 </button>
               ) : isScoring ? (
                 <div className="rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-xl shadow-blue-500/30"
-                  style={{ width: 72, height: 72 }}
+                  style={{ width: 64, height: 64 }}
                 >
-                  <Loader2 className="w-8 h-8 animate-spin" />
+                  <Loader2 className="w-7 h-7 animate-spin" />
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <button
                     onClick={playSample}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-pink-50 dark:bg-pink-950/40 border border-pink-200 dark:border-pink-800/60 text-pink-600 dark:text-pink-300 text-xs font-bold hover:bg-pink-100 dark:hover:bg-pink-950/60 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-pink-50 dark:bg-pink-950/40 border border-pink-200 dark:border-pink-800/60 text-pink-600 dark:text-pink-300 text-xs font-bold hover:bg-pink-100 dark:hover:bg-pink-950/60 transition-colors cursor-pointer"
                   >
-                    <Volume2 className="w-4 h-4" />
-                    <span>Listen First</span>
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Listen</span>
                   </button>
                   <button
                     onClick={startRecording}
-                    className="rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white flex items-center justify-center shadow-xl shadow-pink-500/30 hover:scale-105 hover:shadow-2xl transition-all"
-                    style={{ width: 72, height: 72 }}
+                    className="rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white flex items-center justify-center shadow-xl shadow-pink-500/30 hover:scale-105 hover:shadow-2xl transition-all cursor-pointer"
+                    style={{ width: 64, height: 64 }}
                   >
-                    <Mic className="w-8 h-8" />
+                    <Mic className="w-7 h-7" />
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     title="Tải file .wav lên để test chấm điểm (thay vì ghi âm)"
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-slate-500 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-50 dark:bg-slate-800 border border-[#E4E8F0] dark:border-[#334155] text-slate-500 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                   >
-                    <Upload className="w-4 h-4" />
-                    <span>Upload WAV</span>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>WAV</span>
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".wav,audio/wav,audio/*"
-                    onChange={handleFileUpload}
+                    accept="audio/*"
                     className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        await runScoring(file);
+                      }
+                    }}
                   />
                 </div>
               )}
             </div>
           </div>
 
-          {/* ② Score gauges (after scoring) */}
+          {/* Evaluation details (Gauges + Phoneme breakdown) */}
           {hasEvaluated && scoringResult && (
-            <div className="p-5 rounded-2xl bg-white dark:bg-[#1E293B] border border-emerald-200 dark:border-emerald-800 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-bold text-sm text-emerald-700 dark:text-emerald-300">
-                  <span>📊</span>
-                  <span>Pronunciation Analysis</span>
-                </div>
-                <span className="text-[10px] font-bold text-slate-400">
-                  {scoringResult.inferenceTimeMs}ms
-                </span>
-              </div>
-
+            <div className="space-y-4 animate-in fade-in duration-300">
               <ScoreGauges
                 overallScore={scoringResult.overallScore}
                 pronunciationScore={scoringResult.pronunciationScore}
                 fluencyScore={scoringResult.fluencyScore}
               />
 
-              {scoringResult.recognizedTranscript && (
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Hệ thống nghe được bạn nói
-                  </p>
-                  <p className="text-xs font-mono text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2">
-                    "{scoringResult.recognizedTranscript}"
-                  </p>
-                  <p className="text-[10px] text-slate-400">
-                    Câu mẫu: "{currentLine.sampleText}"
-                  </p>
-                </div>
+              {selectedWordScore && (
+                <PhonemeBreakdown wordScore={selectedWordScore} onClose={() => setSelectedWord(null)} />
               )}
             </div>
           )}
 
-          {/* ③ Phoneme breakdown (when a word is selected) */}
-          {selectedWordScore && (
-            <PhonemeBreakdown
-              wordScore={selectedWordScore}
-              onClose={() => setSelectedWord(null)}
-            />
-          )}
-
-          {/* ④ Bottom navigation */}
-          <div className="flex items-center justify-between gap-3 pt-1">
+          {/* Bottom control bar */}
+          <div className="flex items-center justify-between pt-1">
             <button
               onClick={() => {
-                if (currentIndex > 0) goToLine(currentIndex - 1);
+                if (currentIndex > 0) {
+                  setCurrentIndex((prev) => prev - 1);
+                  handleRetryLine();
+                }
               }}
               disabled={currentIndex === 0}
-              className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-[#5A6478] dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-[#5A6478] dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
             >
-              ← Previous
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Previous Line</span>
             </button>
 
-            <div className="flex items-center gap-2">
-              {!hasEvaluated && !isScoring && (
-                <button
-                  onClick={() => {
-                    setCompletedLines((prev) => new Set(prev).add(currentIndex));
-                    handleNext();
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] text-xs font-bold text-[#5A6478] dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  <SkipForward className="w-3.5 h-3.5" />
-                  <span>Skip</span>
-                </button>
-              )}
-
-              {hasEvaluated && (
-                <button
-                  onClick={handleNext}
-                  className="flex items-center gap-2 px-7 py-3 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white font-extrabold text-xs uppercase tracking-wide shadow-lg shadow-pink-500/20 transition-all hover:shadow-xl"
-                >
-                  <span>{currentIndex < lines.length - 1 ? 'Next Line' : 'Complete Shadowing'}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+            <button
+              onClick={handleNextLine}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white font-extrabold text-xs shadow-lg shadow-pink-500/20 active:scale-95 transition-all cursor-pointer"
+            >
+              <span>{currentIndex < lines.length - 1 ? 'Next Line' : 'Finish Shadowing 🎉'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
-
         </div>
+
       </div>
-      {/* Model Download Prompt Modal */}
+
+      {/* Model download prompt modal */}
       <ModelDownloadPromptModal
         isOpen={isPromptOpen}
         onClose={() => setIsPromptOpen(false)}
         onGoToSettings={() => {
-          navigate('/settings#resources');
-          setTimeout(() => {
-            const el = document.getElementById('resource-manager-section');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }, 100);
+          setIsPromptOpen(false);
+          navigate('/settings');
         }}
+      />
+
+      {/* Add to flashcard modal */}
+      <AddToFlashcardModal
+        isOpen={isAddingToFlashcard}
+        onClose={() => setIsAddingToFlashcard(false)}
+        initialFrontText={currentLine.sampleText}
+        initialBackText={currentLine.phoneticText || ''}
+        videoClip={
+          youtubeVideoId
+            ? { videoId: youtubeVideoId, startTime: currentLine.startTime, endTime: currentLine.endTime }
+            : undefined
+        }
       />
     </div>
   );

@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserProfile } from '../../core/entities';
+import { API_BASE_URL } from '../../infrastructure/config';
 
-const FASTAPI_URL = 'http://localhost:8000/api/v1/auth';
+const FASTAPI_URL = `${API_BASE_URL}/auth`;
 
 export const useCheckEmailMutation = () => {
   return useMutation({

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Mic, 
   Square, 
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { FlashcardSet, Flashcard, ShadowingResult } from '../../../core/entities';
 import { usePronunciationScorer } from '../../hooks/usePronunciationScorer';
+import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { reviewFlashcard } from '../../../infrastructure/api/talk2meApi';
 import { ScoreGauges } from '../exercises/ScoreGauges';
 import { WordScoreDisplay } from '../exercises/WordScoreDisplay';
 
@@ -67,16 +69,9 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
     return () => URL.revokeObjectURL(url);
   }, [recordedBlob]);
 
-  // Speak native audio
-  const speakNative = useCallback((text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.9;
-      window.speechSynthesis.speak(utterance);
-    }
-  }, []);
+  // Native-speaker playback of the target word — this is exactly the use case Kokoro's
+  // natural voice most improves on over the browser's robotic speechSynthesis.
+  const { speak: speakNative } = useTextToSpeech();
 
   // Play user recorded audio
   const playUserAudio = () => {
@@ -98,14 +93,30 @@ export const PronunciationModePlayer: React.FC<PronunciationModePlayerProps> = (
     setCurrentIndex(index);
   };
 
+  // Continuous 0-100 pronunciation score -> SM-2 quality (0-5).
+  const scoreToQuality = (overallScore: number): number => {
+    if (overallScore >= 90) return 5;
+    if (overallScore >= 70) return 4;
+    if (overallScore >= 40) return 3;
+    return 1;
+  };
+
   // Run scoring pipeline
   const runScoring = async (blob: Blob) => {
     setRecordedBlob(blob);
     setHasEvaluated(true);
 
     const result = await scoreAudio(blob, currentCard.frontText);
-    if (result && result.overallScore >= 70) {
-      setMasteredCount((prev) => Math.min(totalCount, prev + 1));
+    if (result) {
+      // Every attempt now sends a real SM-2 signal, including a genuine fail below 40
+      // (previously only >=70 counted for anything, so a bad reading left the card's
+      // schedule untouched instead of pulling it back sooner).
+      reviewFlashcard(currentCard.id, scoreToQuality(result.overallScore)).catch((err) =>
+        console.warn('Không lưu được kết quả ôn tập:', err)
+      );
+      if (result.overallScore >= 70) {
+        setMasteredCount((prev) => Math.min(totalCount, prev + 1));
+      }
     }
   };
 

@@ -19,7 +19,8 @@ import {
   Sliders,
   Check,
   Info,
-  HardDrive
+  HardDrive,
+  ArrowLeft
 } from 'lucide-react';
 import { ResourceManagerSection } from '../components/settings/ResourceManagerSection';
 import {
@@ -38,7 +39,7 @@ interface SettingsPageProps {
   onBack?: () => void;
 }
 
-export const SettingsPage: React.FC<SettingsPageProps> = () => {
+export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   const [config, setConfig] = useState<GeminiConfig>(getStoredConfig);
   const [apiKeyInput, setApiKeyInput] = useState<string>(config.apiKey);
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
@@ -85,16 +86,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'api' | 'resources'>(() => {
-    const hash = window.location.hash;
-    return hash === '#resources' || hash === '#resource-manager' ? 'resources' : 'api';
-  });
+  const [activeTab, setActiveTab] = useState<'api' | 'resources'>('api');
 
   useEffect(() => {
-    setApiKeyInput(config.apiKey);
-  }, [config.apiKey]);
+    // Check initial URL hash
+    if (window.location.hash === '#resources' || window.location.hash === '#resource-manager') {
+      setActiveTab('resources');
+    }
 
-  useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
       if (hash === '#resources' || hash === '#resource-manager') {
@@ -139,6 +138,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
         message: result.message,
         details: detailsMsg,
       });
+
+      // Automatically save and activate custom key mode if valid
+      const updatedConfig: GeminiConfig = {
+        ...config,
+        apiKey: apiKeyInput.trim(),
+        useCustomKey: true,
+      };
+      setConfig(updatedConfig);
+      saveStoredConfig(updatedConfig);
+      showSaveNotification();
     } else {
       setTestResult({
         success: false,
@@ -147,19 +156,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
     }
   };
 
-  const handleSaveAll = () => {
-    const trimmedKey = apiKeyInput.trim();
+  const handleSaveApiKey = () => {
     const updatedConfig: GeminiConfig = {
       ...config,
-      apiKey: trimmedKey,
-      useCustomKey: Boolean(trimmedKey),
+      apiKey: apiKeyInput.trim(),
+      useCustomKey: true,
     };
     setConfig(updatedConfig);
     saveStoredConfig(updatedConfig);
     showSaveNotification();
   };
 
-  const handleClearKey = () => {
+  const handleResetToSystemKey = () => {
     const updatedConfig: GeminiConfig = {
       ...config,
       apiKey: '',
@@ -175,6 +183,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   const showSaveNotification = () => {
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
+  };
+
+  const handleSaveSlots = (newConfig: GeminiConfig) => {
+    setConfig(newConfig);
+    saveStoredConfig(newConfig);
+    showSaveNotification();
   };
 
   // Presets never reference a specific model id — each one just picks by Gemini's own
@@ -197,9 +211,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
     };
 
     const newConfig = { ...config, models: updatedModels };
-    setConfig(newConfig);
-    saveStoredConfig(newConfig);
-    showSaveNotification();
+    handleSaveSlots(newConfig);
   };
 
   const handleRunPlayground = async () => {
@@ -229,8 +241,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
         </div>
       )}
 
-      {/* Segmented Control Navigation Tabs */}
-      <div className="flex justify-center sm:justify-start">
+      {/* Top Header & Segmented Control Navigation Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (onBack) onBack();
+            else window.history.back();
+          }}
+          className="px-3.5 py-2 rounded-2xl bg-white dark:bg-[#1E293B] hover:bg-slate-100 dark:hover:bg-slate-800 text-[#1B1F2E] dark:text-white font-extrabold text-xs flex items-center gap-2 transition-all duration-200 border border-[#E4E8F0] dark:border-[#334155] shadow-xs active:scale-95 cursor-pointer shrink-0 group"
+          title="Quay lại"
+        >
+          <ArrowLeft className="w-4 h-4 text-[#2E68FF] group-hover:-translate-x-0.5 transition-transform" />
+          <span>Quay lại</span>
+        </button>
+        
         <div className="p-1.5 bg-[#EEF2F6] dark:bg-slate-800/80 rounded-2xl border border-[#E4E8F0] dark:border-slate-700/60 inline-flex flex-wrap items-center gap-1.5 shadow-inner">
           <button
             type="button"
@@ -436,7 +461,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
 
               <button
                 type="button"
-                onClick={handleSaveAll}
+                onClick={handleSaveApiKey}
                 className="px-6 py-3 rounded-2xl bg-[#2E68FF] hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-2 transition-colors shrink-0 shadow-md"
               >
                 <Check className="w-4 h-4" />
@@ -474,7 +499,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
             {config.apiKey && (
               <button
                 type="button"
-                onClick={handleClearKey}
+                onClick={handleResetToSystemKey}
                 className="text-xs font-bold text-red-500 hover:text-red-700 dark:hover:text-red-400 underline underline-offset-4"
               >
                 Xóa Key & Quay về Mặc Định

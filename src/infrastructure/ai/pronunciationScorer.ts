@@ -13,6 +13,7 @@
 import * as ort from 'onnxruntime-web';
 import { unzipSync } from 'fflate';
 import { blobToPcm16k, normalizeAudio } from './audioProcessor';
+import { ORT_WASM_BASE_URL } from '../config';
 import { fetchWordPhonemes, textToWordPhonemes } from './g2p';
 import { ARPA_TO_IPA, getPhonemeGuidance } from './phonemeLessons';
 import { getStoredModelBuffer, downloadModel, MODEL_DOWNLOAD_URL } from './resourceManager';
@@ -444,7 +445,7 @@ async function getSession(
   // `import()` ("should not be imported from source code"). Served from the backend instead
   // (a different origin entirely, so Vite's dev server never sees the request) — see
   // talk2me-api/main.py's /ort static mount, files copied from node_modules/onnxruntime-web/dist.
-  ort.env.wasm.wasmPaths = 'http://localhost:8000/ort/';
+  ort.env.wasm.wasmPaths = ORT_WASM_BASE_URL;
   ort.env.wasm.numThreads = 1;
 
   // Check if model is already stored in browser CacheStorage

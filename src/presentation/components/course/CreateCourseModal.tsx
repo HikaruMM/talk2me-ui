@@ -21,8 +21,11 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
   prefillUrl = '',
   onCreateCategory,
 }) => {
+  const selectableCategories = categories.filter((c) => c.id !== 'all');
+  const defaultCatId = selectableCategories[0]?.id || 'english';
+
   const [youtubeUrl, setYoutubeUrl] = useState(prefillUrl);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || 'web-dev');
+  const [selectedCategoryId, setSelectedCategoryId] = useState(defaultCatId);
   const [difficulty, setDifficulty] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Intermediate');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -38,7 +41,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
 
   const resetForm = () => {
     setYoutubeUrl('');
-    setSelectedCategoryId(categories[0]?.id || 'web-dev');
+    setSelectedCategoryId(defaultCatId);
     setDifficulty('Intermediate');
     setErrorMsg('');
   };
@@ -56,7 +59,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
       const selectedCat = categories.find((c) => c.id === selectedCategoryId);
       await generateMutation.mutateAsync({
         youtubeUrl,
-        category: selectedCat ? selectedCat.name : 'Tất Cả Khóa Học',
+        category: selectedCat ? selectedCat.name : 'Tiếng Anh & Ngoại Ngữ',
         difficulty,
       });
       resetForm();

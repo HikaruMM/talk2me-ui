@@ -5,19 +5,36 @@ interface ModelDownloadPromptModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGoToSettings: () => void;
+  /** All below default to the original Wav2Vec2/Shadowing copy so existing call sites don't
+   * need to change — pass these to reuse this same modal for a different model (e.g. Kokoro TTS). */
+  title?: string;
+  subtitle?: string;
+  description?: React.ReactNode;
 }
 
 export const ModelDownloadPromptModal: React.FC<ModelDownloadPromptModalProps> = ({
   isOpen,
   onClose,
   onGoToSettings,
+  title = 'Cần Tải Model AI Phát Âm (~90MB)',
+  subtitle = 'Phục vụ chấm điểm Shadowing tức thì',
+  description = (
+    <>
+      <p>
+        Bài tập <strong>Shadowing (Luyện nhại giọng)</strong> sử dụng mô hình học máy <strong>Wav2Vec2 INT8</strong> để chấm điểm âm tiết trực tiếp trên trình duyệt của bạn.
+      </p>
+      <p className="text-slate-500 dark:text-slate-400">
+        Hiện tại gói tài nguyên này chưa được tải về máy. Bạn có muốn di chuyển đến trang <strong>Quản Lý Tài Nguyên</strong> để tải về không?
+      </p>
+    </>
+  ),
 }) => {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-md p-6 bg-white dark:bg-[#1E293B] rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5">
-        
+
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -33,22 +50,17 @@ export const ModelDownloadPromptModal: React.FC<ModelDownloadPromptModalProps> =
           </div>
           <div>
             <h3 className="text-base font-extrabold text-[#1B1F2E] dark:text-white">
-              Cần Tải Model AI Phát Âm (~90MB)
+              {title}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Phục vụ chấm điểm Shadowing tức thì
+              {subtitle}
             </p>
           </div>
         </div>
 
         {/* Content */}
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 space-y-2 leading-relaxed">
-          <p>
-            Bài tập <strong>Shadowing (Luyện nhại giọng)</strong> sử dụng mô hình học máy <strong>Wav2Vec2 INT8</strong> để chấm điểm âm tiết trực tiếp trên trình duyệt của bạn.
-          </p>
-          <p className="text-slate-500 dark:text-slate-400">
-            Hiện tại gói tài nguyên này chưa được tải về máy. Bạn có muốn di chuyển đến trang <strong>Quản Lý Tài Nguyên</strong> để tải về không?
-          </p>
+          {description}
         </div>
 
         {/* Privacy badge */}

@@ -2,11 +2,28 @@ import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { Course, Category, LearningModeType } from '../../core/entities';
 import { LocalCourseRepository } from '../../infrastructure/storage/LocalCourseRepository';
 import { INITIAL_COURSES } from '../../infrastructure/data/mockCourses';
+import {
+  getCategories as fetchCategories,
+  createCategory as createCategoryApi,
+  ApiCategory,
+} from '../../infrastructure/api/talk2meApi';
 
 const courseRepo = new LocalCourseRepository();
 
+/** The backend only stores id/name/color/createdAt — badgeBg/badgeText are display-only and
+ * derived here, always the same blue used for every user-created category today (matches
+ * the fixed styling the old localStorage-based createCategory always applied). */
+const toCategory = (api: ApiCategory): Category => ({
+  id: api.id,
+  name: api.name,
+  color: api.color,
+  badgeBg: 'bg-blue-100 dark:bg-blue-900/40',
+  badgeText: 'text-blue-600 dark:text-blue-400',
+});
+
 interface CourseContextType {
   categories: Category[];
+  createCategory: (name: string) => void;
   publicCourses: Course[];
   userCourses: Course[];
   courses: Course[];
@@ -27,8 +44,6 @@ interface CourseContextType {
   setIsCreateModalOpen: (open: boolean) => void;
   setPrefillUrl: (url: string) => void;
   addCourse: (newCourse: Course) => void;
-  createCategory: (name: string) => void;
-  addCategory: (newCategory: Category | string) => void;
   selectCourse: (course: Course, lessonIndex?: number) => void;
   clearActiveCourse: () => void;
   openCreateModal: (url?: string) => void;
@@ -38,7 +53,7 @@ interface CourseContextType {
 export const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
 export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [categories, setCategories] = useState<Category[]>(() => courseRepo.getCategories());
+  const [categories, setCategories] = useState<Category[]>([]);
   const [publicCourses] = useState<Course[]>(INITIAL_COURSES);
   
   // User's own created/saved courses
@@ -62,9 +77,15 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [prefillUrl, setPrefillUrl] = useState<string>('');
 
+  // Categories are per-user, server-backed (see app/api/v1/categories.py) — a logged-out
+  // visitor gets a 401 here, which we swallow to an empty list; App.tsx already falls back
+  // to INITIAL_CATEGORIES (the old hardcoded set) whenever `categories` is empty, so guest
+  // browsing keeps working exactly as before.
   useEffect(() => {
-    courseRepo.saveCategories(categories);
-  }, [categories]);
+    fetchCategories()
+      .then((apiCats) => setCategories(apiCats.map(toCategory)))
+      .catch(() => setCategories([]));
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('talk2me_user_created_courses', JSON.stringify(userCourses));
@@ -78,14 +99,9 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const createCategory = (name: string) => {
-    const newCat: Category = {
-      id: name.toLowerCase().replace(/\s+/g, '-'),
-      name,
-      color: '#2E68FF',
-      badgeBg: 'bg-blue-100 dark:bg-blue-900/40',
-      badgeText: 'text-blue-600 dark:text-blue-400',
-    };
-    setCategories((prev) => [...prev, newCat]);
+    createCategoryApi({ name })
+      .then((created) => setCategories((prev) => [...prev, toCategory(created)]))
+      .catch((err) => console.warn('Không tạo được danh mục:', err));
   };
 
   const selectCourse = (course: Course, lessonIndex = 0) => {
@@ -133,13 +149,6 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setPrefillUrl,
         addCourse,
         createCategory,
-        addCategory: (cat: Category | string) => {
-          if (typeof cat === 'string') {
-            createCategory(cat);
-          } else {
-            setCategories((prev) => [...prev, cat]);
-          }
-        },
         selectCourse,
         clearActiveCourse,
         openCreateModal,

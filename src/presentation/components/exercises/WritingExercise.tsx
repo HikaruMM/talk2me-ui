@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { WritingPrompt, WritingEvaluation, ModeProgress } from '../../../core/entities';
 import { evaluateWriting } from '../../../infrastructure/api/talk2meApi';
-import { Sparkles, AlertTriangle, ArrowRight, Loader2, BookOpen, RotateCcw, Award, FileText, Lightbulb } from 'lucide-react';
+import { Sparkles, AlertTriangle, ArrowRight, Loader2, BookOpen, RotateCcw, Award, FileText, Lightbulb, Volume2 } from 'lucide-react';
 import { CompletedModeGate } from './CompletedModeGate';
+import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 
 interface WritingExerciseProps {
   courseId: string;
@@ -25,6 +26,7 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
   const [evalError, setEvalError] = useState('');
   const [isRetrying, setIsRetrying] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const { speak } = useTextToSpeech();
 
   if (progress?.completed && !isRetrying && !evaluation) {
     return (
@@ -39,7 +41,9 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
 
   const wordCount = submissionText.trim() ? submissionText.trim().split(/\s+/).length : 0;
 
-  const sampleText = prompt?.sampleAnswer || 
+  const promptText = prompt?.promptText || 'Summarize the core takeaways from this lesson in 100-150 words using your own vocabulary.';
+
+  const sampleText = prompt?.sampleAnswer ||
     "Semantic HTML and structured layout architectures are vital for modern web application performance and accessibility. By utilizing clear semantic tags like article and nav, search engines accurately parse page hierarchy while screen readers offer effortless navigation for visually impaired users.";
 
   const handleFillSample = () => {
@@ -91,9 +95,19 @@ export const WritingExercise: React.FC<WritingExerciseProps> = ({
 
       {/* Prompt Card */}
       <div className="p-5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 space-y-2">
-        <p className="text-xs font-bold text-[#F79009] uppercase">Writing Prompt:</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-[#F79009] uppercase">Writing Prompt:</p>
+          <button
+            type="button"
+            onClick={() => speak(promptText)}
+            title="Đọc to câu hỏi"
+            className="p-1.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-[#F79009] hover:scale-110 transition-transform shrink-0"
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
         <p className="text-sm sm:text-base font-bold text-[#1B1F2E] dark:text-white leading-snug">
-          {prompt?.promptText || 'Summarize the core takeaways from this lesson in 100-150 words using your own vocabulary.'}
+          {promptText}
         </p>
         <p className="text-xs text-[#5A6478] dark:text-[#CBD5E1]">
           Suggested target: <span className="font-bold text-[#F79009]">{prompt?.suggestedWordCount || 120} words</span>

@@ -66,6 +66,9 @@ interface TheoryReaderProps {
    * has no video of its own, so vocabulary/grammar "listen" buttons control that one instead
    * of spawning a second (previously invisible) player. */
   onPlaySegment: (start: number, end: number) => void;
+  /** youtubeVideoId of the course — passed through to Vocabulary/Grammar so their "Add to
+   * Flashcard" action can attach the matching clip as evidence. */
+  youtubeVideoId?: string;
   onCompleteTheory: () => void;
   onStartQuiz: () => void;
 }
@@ -75,6 +78,7 @@ export const TheoryReader: React.FC<TheoryReaderProps> = ({
   courseId,
   lessonId,
   onPlaySegment,
+  youtubeVideoId,
   onCompleteTheory,
   onStartQuiz,
 }) => {
@@ -115,11 +119,11 @@ export const TheoryReader: React.FC<TheoryReaderProps> = ({
 
       {/* Vocabulary — fixed React table (not LLM-authored Markdown) so every lesson shows
           the exact same layout, with a play button seeking the real video moment. */}
-      <VocabularyTable items={lesson.vocabulary || []} onPlay={onPlaySegment} />
+      <VocabularyTable items={lesson.vocabulary || []} onPlay={onPlaySegment} videoId={youtubeVideoId} />
 
       {/* Grammar structures — independent list, own fields, same play-by-timestamp
           mechanism as vocabulary but no cross-reference between the two. */}
-      <GrammarStructureList items={lesson.grammarStructures || []} onPlay={onPlaySegment} />
+      <GrammarStructureList items={lesson.grammarStructures || []} onPlay={onPlaySegment} videoId={youtubeVideoId} />
 
       {/* Key Takeaways Card */}
       {lesson.keyTakeaways && lesson.keyTakeaways.length > 0 && (

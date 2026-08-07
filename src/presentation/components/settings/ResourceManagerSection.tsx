@@ -17,6 +17,12 @@ import {
   deleteModel,
   ModelResourceStatus
 } from '../../../infrastructure/ai/resourceManager';
+import {
+  isTtsModelDownloaded,
+  getTtsDownloadedAt,
+  preloadTtsModel,
+  deleteTtsModel,
+} from '../../../infrastructure/ai/ttsEngine';
 
 export const ResourceManagerSection: React.FC = () => {
   const [status, setStatus] = useState<ModelResourceStatus | null>(null);
@@ -24,6 +30,15 @@ export const ResourceManagerSection: React.FC = () => {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Kokoro TTS — independent state, own model, own cache (Transformers.js's own Cache
+  // Storage entry, not the wav2vec2 zip-download flow above).
+  const [ttsDownloaded, setTtsDownloaded] = useState(false);
+  const [ttsDownloadedAt, setTtsDownloadedAt] = useState<string | null>(null);
+  const [isTtsDownloading, setIsTtsDownloading] = useState(false);
+  const [ttsDownloadProgress, setTtsDownloadProgress] = useState(0);
+  const [isTtsDeleting, setIsTtsDeleting] = useState(false);
+  const [ttsMessage, setTtsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadStatus = async () => {
     try {
@@ -34,8 +49,14 @@ export const ResourceManagerSection: React.FC = () => {
     }
   };
 
+  const loadTtsStatus = () => {
+    setTtsDownloaded(isTtsModelDownloaded());
+    setTtsDownloadedAt(getTtsDownloadedAt());
+  };
+
   useEffect(() => {
     loadStatus();
+    loadTtsStatus();
   }, []);
 
   const handleDownload = async () => {
@@ -85,6 +106,54 @@ export const ResourceManagerSection: React.FC = () => {
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleTtsDownload = async () => {
+    setIsTtsDownloading(true);
+    setTtsDownloadProgress(0);
+    setTtsMessage(null);
+
+    try {
+      await preloadTtsModel((percent) => setTtsDownloadProgress(percent));
+      loadTtsStatus();
+      setTtsMessage({
+        type: 'success',
+        text: 'Đã tải và lưu thành công Model Kokoro TTS (~86MB) vào bộ nhớ trình duyệt!',
+      });
+    } catch (err: any) {
+      console.error('Download TTS model failed:', err);
+      setTtsMessage({
+        type: 'error',
+        text: err.message || 'Tải model thất bại. Vui lòng kiểm tra lại kết nối mạng.',
+      });
+    } finally {
+      setIsTtsDownloading(false);
+    }
+  };
+
+  const handleTtsDelete = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa Model Kokoro TTS khỏi bộ nhớ trình duyệt?')) {
+      return;
+    }
+
+    setIsTtsDeleting(true);
+    setTtsMessage(null);
+    try {
+      await deleteTtsModel();
+      loadTtsStatus();
+      setTtsMessage({
+        type: 'success',
+        text: 'Đã xóa dữ liệu Model Kokoro TTS khỏi bộ nhớ thiết bị.',
+      });
+    } catch (err) {
+      console.error('Delete TTS model failed:', err);
+      setTtsMessage({
+        type: 'error',
+        text: 'Không thể xóa dữ liệu.',
+      });
+    } finally {
+      setIsTtsDeleting(false);
     }
   };
 
@@ -234,6 +303,101 @@ export const ResourceManagerSection: React.FC = () => {
                 <div
                   className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-200"
                   style={{ width: `${downloadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* TTS message feedback */}
+        {ttsMessage && (
+          <div
+            className={`p-4 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in duration-150 ${
+              ttsMessage.type === 'success'
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                : 'bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+            }`}
+          >
+            {ttsMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            ) : (
+              <Info className="w-4 h-4 text-red-500 shrink-0" />
+            )}
+            <span>{ttsMessage.text}</span>
+          </div>
+        )}
+
+        {/* Resource Item Card — Kokoro TTS */}
+        <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold shrink-0 shadow-sm">
+                <Cpu className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-[#1B1F2E] dark:text-white flex items-center gap-2">
+                  <span>Model AI Đọc Giọng Nói (Kokoro TTS)</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                  Mô hình đọc văn bản tiếng Anh tự nhiên (~86MB), dùng cho nút loa ở Flashcard, Writing & Speaking, chạy 100% Offline trên trình duyệt.
+                </p>
+                {ttsDownloadedAt && (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                    ✓ Đã lưu trữ trong CacheStorage ({new Date(ttsDownloadedAt).toLocaleString('vi-VN')})
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="shrink-0 flex items-center gap-2">
+              {!ttsDownloaded ? (
+                <button
+                  type="button"
+                  onClick={handleTtsDownload}
+                  disabled={isTtsDownloading}
+                  className="w-full sm:w-auto px-6 py-3 rounded-full bg-[#2E68FF] hover:bg-blue-600 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition-all disabled:opacity-50"
+                >
+                  {isTtsDownloading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Đang tải {ttsDownloadProgress}%...</span>
+                    </>
+                  ) : (
+                    <>
+                      <DownloadCloud className="w-4 h-4" />
+                      <span>Tải Model (~86MB)</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleTtsDelete}
+                  disabled={isTtsDeleting}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-red-50 dark:bg-red-950/40 hover:bg-red-100 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isTtsDeleting ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  <span>Xóa Khỏi Bộ Nhớ</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Progress bar during download */}
+          {isTtsDownloading && (
+            <div className="space-y-1.5 pt-2">
+              <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span>Đang lưu trữ vào CacheStorage...</span>
+                <span>{ttsDownloadProgress}%</span>
+              </div>
+              <div className="w-full h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-200"
+                  style={{ width: `${ttsDownloadProgress}%` }}
                 />
               </div>
             </div>

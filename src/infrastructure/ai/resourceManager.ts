@@ -6,7 +6,9 @@
  * Storage: CacheStorage ('talk2me-ai-models-v1')
  */
 
-export const MODEL_DOWNLOAD_URL = 'http://localhost:8000/api/v1/phonemes/download-model';
+import { API_BASE_URL } from '../config';
+
+export const MODEL_DOWNLOAD_URL = `${API_BASE_URL}/phonemes/download-model`;
 
 const CACHE_NAME = 'talk2me-ai-models-v1';
 const DOWNLOAD_DATE_KEY = 'talk2me_model_downloaded_at';

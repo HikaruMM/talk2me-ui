@@ -1,19 +1,25 @@
-import React, { useState } from 'react';
-import { 
-  Folder, 
-  FolderPlus, 
-  Plus, 
-  Layers, 
-  Globe, 
-  Lock, 
-  BookOpen, 
-  Search, 
-  Trash2, 
+import React, { useState, useEffect } from 'react';
+import {
+  Folder,
+  FolderPlus,
+  Plus,
+  Layers,
+  Globe,
+  Lock,
+  BookOpen,
+  Search,
+  Trash2,
   ChevronRight,
   ArrowLeft
 } from 'lucide-react';
 import { FlashcardSet, FlashcardFolder, Flashcard } from '../../../core/entities';
-import { INITIAL_FLASHCARD_FOLDERS, INITIAL_FLASHCARD_SETS } from '../../../infrastructure/data/mockFlashcards';
+import {
+  getFlashcardFolders,
+  getFlashcardSets,
+  getFlashcardsInSet,
+  deleteFlashcardFolder,
+  deleteFlashcardSet,
+} from '../../../infrastructure/api/talk2meApi';
 import { FlashcardSetEditor } from './FlashcardSetEditor';
 import { FlashcardPlayer } from './FlashcardPlayer';
 import { FlashcardFolderModal } from './FlashcardFolderModal';
@@ -24,8 +30,10 @@ interface FlashcardDeckProps {
 }
 
 export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
-  const [folders, setFolders] = useState<FlashcardFolder[]>(INITIAL_FLASHCARD_FOLDERS);
-  const [studySets, setStudySets] = useState<FlashcardSet[]>(INITIAL_FLASHCARD_SETS);
+  const [folders, setFolders] = useState<FlashcardFolder[]>([]);
+  const [studySets, setStudySets] = useState<FlashcardSet[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [viewState, setViewState] = useState<'dashboard' | 'folder-detail' | 'player' | 'editor'>('dashboard');
   
@@ -39,6 +47,51 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   const [activeTab, setActiveTab] = useState<'sets' | 'folders'>('sets');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const [folderSummaries, setSummaries] = await Promise.all([getFlashcardFolders(), getFlashcardSets()]);
+        if (cancelled) return;
+        const loadedSets: FlashcardSet[] = setSummaries.map((s) => ({ ...s, cards: [] }));
+        const loadedFolders: FlashcardFolder[] = folderSummaries.map((f) => ({
+          ...f,
+          setIds: loadedSets.filter((s) => s.folderId === f.id).map((s) => s.id),
+        }));
+        setFolders(loadedFolders);
+        setStudySets(loadedSets);
+      } catch (err) {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Không tải được flashcard.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Set summaries returned by the list endpoints don't include each card (that would be
+  // wasteful for a dashboard grid) — fetch the full card list lazily the moment the user
+  // actually opens a set to study/edit it.
+  const openSet = async (set: FlashcardSet) => {
+    if (set.cards.length === 0 && (set.cardsCount ?? 0) > 0) {
+      try {
+        const cards = await getFlashcardsInSet(set.id);
+        const hydrated = { ...set, cards };
+        setStudySets((prev) => prev.map((s) => (s.id === set.id ? hydrated : s)));
+        setSelectedSet(hydrated);
+      } catch {
+        setSelectedSet(set);
+      }
+    } else {
+      setSelectedSet(set);
+    }
+    setViewState('player');
+  };
 
   const handleSaveSet = (newSet: FlashcardSet, practiceNow: boolean = false) => {
     setStudySets((prev) => {
@@ -81,6 +134,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   const handleDeleteSet = (setId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('Bạn có chắc chắn muốn xóa học phần này?')) {
+      deleteFlashcardSet(setId).catch((err) => console.warn('Không xóa được học phần trên server:', err));
       setStudySets((prev) => prev.filter((s) => s.id !== setId));
       if (selectedSet?.id === setId) {
         setSelectedSet(null);
@@ -92,6 +146,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
   const handleDeleteFolder = (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('Bạn có chắc chắn muốn xóa thư mục này? (Các học phần bên trong vẫn sẽ giữ nguyên)')) {
+      deleteFlashcardFolder(folderId).catch((err) => console.warn('Không xóa được thư mục trên server:', err));
       setFolders((prev) => prev.filter((f) => f.id !== folderId));
       if (selectedFolder?.id === folderId) {
         setSelectedFolder(null);
@@ -147,9 +202,11 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
                 setSelectedFolder(null);
                 setViewState('dashboard');
               }}
-              className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 transition-colors"
+              className="px-3.5 py-2 rounded-2xl bg-white dark:bg-[#1E293B] hover:bg-slate-100 dark:hover:bg-slate-800 text-[#1B1F2E] dark:text-white font-extrabold text-xs flex items-center gap-2 transition-all duration-200 border border-[#E4E8F0] dark:border-[#334155] shadow-xs active:scale-95 cursor-pointer shrink-0 group"
+              title="Quay lại"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4 text-[#2E68FF] group-hover:-translate-x-0.5 transition-transform" />
+              <span>Quay lại</span>
             </button>
 
             <div>
@@ -206,16 +263,13 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
               {setsInFolder.map((set) => (
                 <div
                   key={set.id}
-                  onClick={() => {
-                    setSelectedSet(set);
-                    setViewState('player');
-                  }}
+                  onClick={() => openSet(set)}
                   className="p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs hover:shadow-lg hover:border-[#2E68FF] cursor-pointer transition-all space-y-4 flex flex-col justify-between group"
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/80 text-[#2E68FF] font-bold text-[10px]">
-                        {set.cards.length} thẻ
+                        {(set.cardsCount ?? set.cards.length)} thẻ
                       </span>
                       {set.isPublic ? (
                         <Globe className="w-3.5 h-3.5 text-emerald-500" />
@@ -251,7 +305,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-in fade-in duration-200">
-      
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
           <h1 className="text-3xl font-black text-[#1B1F2E] dark:text-white tracking-tight">
@@ -261,6 +315,13 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
             Quản lý và ôn luyện các bộ thẻ ghi nhớ cũng như thư mục trong thư viện của bạn
           </p>
         </div>
+
+        {isLoading && (
+          <span className="text-xs font-semibold text-slate-400">Đang tải...</span>
+        )}
+        {loadError && (
+          <span className="text-xs font-semibold text-red-500">{loadError}</span>
+        )}
 
         <div className="flex items-center gap-3">
           <div className="relative w-full sm:w-64">
@@ -368,17 +429,14 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
                       />
                     </div>
                     <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                      {idx === 0 ? '15% số câu hỏi đã hoàn thành' : `${set.cards.length}/${set.cards.length} thẻ đã xem`}
+                      {idx === 0 ? '15% số câu hỏi đã hoàn thành' : `${(set.cardsCount ?? set.cards.length)}/${(set.cardsCount ?? set.cards.length)} thẻ đã xem`}
                     </p>
                   </div>
                 </div>
 
                 <div className="z-10 pt-2">
                   <button
-                    onClick={() => {
-                      setSelectedSet(set);
-                      setViewState('player');
-                    }}
+                    onClick={() => openSet(set)}
                     className="px-6 py-2.5 rounded-full bg-[#2E68FF] hover:bg-blue-600 text-white font-extrabold text-xs shadow-xs transition-transform hover:scale-105 active:scale-95"
                   >
                     Continue (Tiếp tục)
@@ -399,10 +457,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
           {studySets.map((set) => (
             <div
               key={set.id}
-              onClick={() => {
-                setSelectedSet(set);
-                setViewState('player');
-              }}
+              onClick={() => openSet(set)}
               className="p-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-2xs hover:shadow-md hover:border-[#2E68FF] cursor-pointer transition-all flex items-center gap-3 group"
             >
               <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-[#2E68FF] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -413,7 +468,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
                   {set.title}
                 </h4>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  {set.cards.length} cards • by you
+                  {(set.cardsCount ?? set.cards.length)} cards • by you
                 </p>
               </div>
             </div>
@@ -494,16 +549,13 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = () => {
               {filteredSets.map((set) => (
                 <div
                   key={set.id}
-                  onClick={() => {
-                    setSelectedSet(set);
-                    setViewState('player');
-                  }}
+                  onClick={() => openSet(set)}
                   className="p-6 rounded-3xl bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] shadow-xs hover:shadow-xl hover:border-[#2E68FF] cursor-pointer transition-all space-y-4 flex flex-col justify-between group"
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-xs">
                       <span className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/80 text-[#2E68FF] font-extrabold text-[10px]">
-                        {set.cards.length} thẻ ghi nhớ
+                        {(set.cardsCount ?? set.cards.length)} thẻ ghi nhớ
                       </span>
 
                       <div className="flex items-center gap-2">

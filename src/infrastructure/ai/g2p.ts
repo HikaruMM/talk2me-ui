@@ -8,8 +8,9 @@
  */
 
 import { ARPA_TO_IPA } from './phonemeLessons';
+import { API_BASE_URL } from '../config';
 
-const PHONEME_API_URL = 'http://localhost:8000/api/v1/phonemes/lookup';
+const PHONEME_API_URL = `${API_BASE_URL}/phonemes/lookup`;
 
 /**
  * Fetch ARPAbet phonemes for a full sentence from the backend cmudict API.

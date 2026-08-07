@@ -6,6 +6,7 @@ import {
   RotateCcw, History, Video, Lightbulb, Loader2
 } from 'lucide-react';
 import { CompletedModeGate } from './CompletedModeGate';
+import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 
 interface SpeakingExerciseProps {
   courseId: string;
@@ -44,6 +45,7 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   ]);
 
   const recognitionRef = useRef<any>(null);
+  const { speak: speakText } = useTextToSpeech();
 
   if (progress?.completed && !isRetrying && !evaluation) {
     return (
@@ -57,15 +59,6 @@ export const SpeakingExercise: React.FC<SpeakingExerciseProps> = ({
   }
 
   const topicTitle = prompt?.promptText || "Do you wear a watch or describe a favorite piece of technology?";
-
-  const speakText = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      window.speechSynthesis.speak(utterance);
-    }
-  };
 
   const startRecording = () => {
     setIsRecording(true);

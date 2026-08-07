@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { FlashcardSet, FlashcardFolder, Flashcard } from '../../../core/entities';
 import { QuickImportModal } from './QuickImportModal';
+import { createFlashcardSet, createFlashcard } from '../../../infrastructure/api/talk2meApi';
 
 interface FlashcardSetEditorProps {
   initialSet?: FlashcardSet | null;
@@ -100,7 +101,9 @@ export const FlashcardSetEditor: React.FC<FlashcardSetEditorProps> = ({
     });
   };
 
-  const handleSave = (practiceNow: boolean = false) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async (practiceNow: boolean = false) => {
     if (!title.trim()) {
       alert('Vui lòng nhập tiêu đề cho học phần!');
       return;
@@ -112,43 +115,75 @@ export const FlashcardSetEditor: React.FC<FlashcardSetEditorProps> = ({
       return;
     }
 
-    const newSet: FlashcardSet = {
-      id: initialSet?.id || `set-${Date.now()}`,
-      folderId: folderId || undefined,
-      title: title.trim(),
-      description: description.trim(),
-      isPublic,
-      createdAt: initialSet?.createdAt || new Date().toISOString().split('T')[0],
-      cardsCount: validCards.length,
-      cards: validCards.map((c, idx) => ({
-        id: c.id || `card-${Date.now()}-${idx}`,
-        frontText: c.frontText.trim(),
-        backText: c.backText.trim(),
-        imageUrl: c.imageUrl,
-        status: 'new',
-        nextReviewDate: new Date().toISOString(),
-        intervalDays: 1,
-        easeFactor: 2.5,
-        repetitions: 0,
-      })),
-    };
+    // Editing an existing set stays local-only — the backend only supports creating new
+    // sets/cards (no update endpoint yet), so persisting edits isn't possible here.
+    if (initialSet) {
+      const updatedSet: FlashcardSet = {
+        ...initialSet,
+        folderId: folderId || undefined,
+        title: title.trim(),
+        description: description.trim(),
+        isPublic,
+        cardsCount: validCards.length,
+        cards: validCards.map((c, idx) => ({
+          id: c.id || `card-${Date.now()}-${idx}`,
+          frontText: c.frontText.trim(),
+          backText: c.backText.trim(),
+          imageUrl: c.imageUrl,
+          status: 'new',
+          nextReviewDate: new Date().toISOString(),
+          intervalDays: 1,
+          easeFactor: 2.5,
+          repetitions: 0,
+        })),
+      };
+      onSaveSet(updatedSet, practiceNow);
+      return;
+    }
 
-    onSaveSet(newSet, practiceNow);
+    setIsSaving(true);
+    try {
+      const createdSet = await createFlashcardSet({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        folderId: folderId || undefined,
+        isPublic,
+      });
+      const createdCards: Flashcard[] = await Promise.all(
+        validCards.map((c) =>
+          createFlashcard({
+            setId: createdSet.id,
+            frontText: c.frontText.trim(),
+            backText: c.backText.trim(),
+            imageUrl: c.imageUrl,
+          })
+        )
+      );
+      const newSet: FlashcardSet = { ...createdSet, cards: createdCards };
+      onSaveSet(newSet, practiceNow);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không thể tạo học phần.');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const saveButtonLabel = isSaving ? 'Đang lưu...' : initialSet ? 'Lưu thay đổi' : 'Tạo';
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] text-slate-900 dark:text-slate-100 p-4 sm:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-8">
-        
+
         {/* Top Header Controls */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#E4E8F0] dark:border-[#334155]">
           <div className="flex items-center gap-4">
             <button
               onClick={onCancel}
-              className="p-2.5 rounded-full bg-white dark:bg-[#1E293B] border border-[#E4E8F0] dark:border-[#334155] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-xs"
+              className="px-3.5 py-2 rounded-2xl bg-white dark:bg-[#1E293B] hover:bg-slate-100 dark:hover:bg-slate-800 text-[#1B1F2E] dark:text-white font-extrabold text-xs flex items-center gap-2 transition-all duration-200 border border-[#E4E8F0] dark:border-[#334155] shadow-xs active:scale-95 cursor-pointer shrink-0 group"
               title="Quay lại"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4 text-[#2E68FF] group-hover:-translate-x-0.5 transition-transform" />
+              <span>Quay lại</span>
             </button>
             <h1 className="text-xl sm:text-2xl font-black text-[#1B1F2E] dark:text-white tracking-tight">
               {initialSet ? 'Chỉnh sửa học phần' : 'Tạo một học phần mới'}
@@ -158,16 +193,18 @@ export const FlashcardSetEditor: React.FC<FlashcardSetEditorProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={() => handleSave(false)}
-              className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs transition-colors"
+              disabled={isSaving}
+              className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs transition-colors disabled:opacity-50"
             >
-              {initialSet ? 'Lưu thay đổi' : 'Tạo'}
+              {saveButtonLabel}
             </button>
 
             <button
               onClick={() => handleSave(true)}
-              className="px-6 py-2.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-extrabold text-xs shadow-md shadow-blue-500/20 transition-transform active:scale-95"
+              disabled={isSaving}
+              className="px-6 py-2.5 rounded-xl bg-[#2E68FF] hover:bg-blue-600 text-white font-extrabold text-xs shadow-md shadow-blue-500/20 transition-transform active:scale-95 disabled:opacity-50"
             >
-              Tạo và ôn luyện
+              {isSaving ? 'Đang lưu...' : 'Tạo và ôn luyện'}
             </button>
           </div>
         </div>

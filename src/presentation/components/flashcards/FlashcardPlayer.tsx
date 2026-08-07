@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
+import { useNavigate } from 'react-router-dom';
+import {
   Volume2, 
   Star, 
   ArrowLeft, 
@@ -18,11 +19,16 @@ import {
   Minimize2,
   Lightbulb,
   Keyboard,
-  Mic
+  Mic,
+  Film
 } from 'lucide-react';
 import { FlashcardSet } from '../../../core/entities';
 import { LearnModePlayer } from './LearnModePlayer';
 import { PronunciationModePlayer } from './PronunciationModePlayer';
+import { reviewFlashcard } from '../../../infrastructure/api/talk2meApi';
+import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { isTtsModelDownloaded } from '../../../infrastructure/ai/ttsEngine';
+import { ModelDownloadPromptModal } from '../exercises/ModelDownloadPromptModal';
 
 interface FlashcardPlayerProps {
   set: FlashcardSet;
@@ -43,6 +49,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
   const [starredIds, setStarredIds] = useState<string[]>([]);
   const [showHint, setShowHint] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showVideoClip, setShowVideoClip] = useState(false);
 
   // Learning Progress Counters
   const [learningIds, setLearningIds] = useState<string[]>([]);
@@ -61,8 +68,27 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
 
   const currentCard = set.cards[currentIndex] || set.cards[0];
 
-  // Speak Audio
-  const speak = (text: string) => {
+  const navigate = useNavigate();
+  const [isTtsPromptOpen, setIsTtsPromptOpen] = useState(false);
+  const { speak: speakKokoro, preload: preloadTts } = useTextToSpeech();
+
+  // Collapse the video-evidence embed whenever the card changes — otherwise a previous
+  // card's clip would keep silently autoplaying off-screen after moving on.
+  useEffect(() => {
+    setShowVideoClip(false);
+  }, [currentIndex]);
+
+  useEffect(() => {
+    if (isTtsModelDownloaded()) {
+      preloadTts();
+    } else {
+      setIsTtsPromptOpen(true);
+    }
+  }, [preloadTts]);
+
+  // Back-face "definition" text is often Vietnamese, which Kokoro doesn't support — keeps
+  // using the browser's native voice. Front-face term text uses Kokoro (speakKokoro) instead.
+  const speakBack = (text: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
@@ -78,31 +104,40 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
     );
   };
 
-  // Mark as Learning (X)
-  const handleMarkLearning = useCallback(() => {
-    if (!currentCard) return;
-    const id = currentCard.id;
-    setLearningIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setKnownIds((prev) => prev.filter((i) => i !== id));
-    setIsFlipped(false);
-    setShowHint(false);
-    if (currentIndex < set.cards.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-    }
-  }, [currentCard, currentIndex, set.cards.length]);
+  // Shared SM-2 review step: sends the real quality (0-5) to the backend so
+  // interval/ease_factor/next_review_date are computed per-card, then advances the deck.
+  // Again/Hard land in the "learning" bucket, Good/Easy in "known" — matches the SM-2
+  // quality<3 vs >=3 split used server-side (app/services/srs.py).
+  const submitReview = useCallback(
+    (quality: number, bucket: 'learning' | 'known') => {
+      if (!currentCard) return;
+      const id = currentCard.id;
+      reviewFlashcard(id, quality).catch((err) => console.warn('Không lưu được kết quả ôn tập:', err));
 
-  // Mark as Known (Check)
-  const handleMarkKnown = useCallback(() => {
-    if (!currentCard) return;
-    const id = currentCard.id;
-    setKnownIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setLearningIds((prev) => prev.filter((i) => i !== id));
-    setIsFlipped(false);
-    setShowHint(false);
-    if (currentIndex < set.cards.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-    }
-  }, [currentCard, currentIndex, set.cards.length]);
+      if (bucket === 'learning') {
+        setLearningIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+        setKnownIds((prev) => prev.filter((i) => i !== id));
+      } else {
+        setKnownIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+        setLearningIds((prev) => prev.filter((i) => i !== id));
+      }
+      setIsFlipped(false);
+      setShowHint(false);
+      if (currentIndex < set.cards.length - 1) {
+        setCurrentIndex((prev) => prev + 1);
+      }
+    },
+    [currentCard, currentIndex, set.cards.length]
+  );
+
+  // Again (< 1 phút) — quality=1: chưa nhớ, SM-2 reset interval về 1 ngày.
+  const handleAgain = useCallback(() => submitReview(1, 'learning'), [submitReview]);
+  // Hard (10 phút) — quality=3: nhớ được nhưng khó khăn.
+  const handleHard = useCallback(() => submitReview(3, 'learning'), [submitReview]);
+  // Good (1 ngày) — quality=4: nhớ tốt.
+  const handleGood = useCallback(() => submitReview(4, 'known'), [submitReview]);
+  // Easy (4 ngày) — quality=5: nhớ rất tốt, interval sẽ tăng nhanh hơn.
+  const handleEasy = useCallback(() => submitReview(5, 'known'), [submitReview]);
 
   // Undo / Previous card
   const handleUndo = useCallback(() => {
@@ -123,10 +158,10 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
         setIsFlipped((prev) => !prev);
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        handleMarkLearning();
+        handleAgain();
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
-        handleMarkKnown();
+        handleGood();
       } else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
         e.preventDefault();
         setIsFlipped((prev) => !prev);
@@ -135,7 +170,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeMode, handleMarkLearning, handleMarkKnown]);
+  }, [activeMode, handleAgain, handleGood]);
 
   const toggleFullscreen = () => {
     setIsFullscreen((prev) => !prev);
@@ -149,9 +184,11 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 transition-colors"
+            className="px-3.5 py-2 rounded-2xl bg-white dark:bg-[#1E293B] hover:bg-slate-100 dark:hover:bg-slate-800 text-[#1B1F2E] dark:text-white font-extrabold text-xs flex items-center gap-2 transition-all duration-200 border border-[#E4E8F0] dark:border-[#334155] shadow-xs active:scale-95 cursor-pointer shrink-0 group"
+            title="Quay lại danh sách Flashcard"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 text-[#2E68FF] group-hover:-translate-x-0.5 transition-transform" />
+            <span>Quay lại</span>
           </button>
 
           <div>
@@ -303,7 +340,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        speak(currentCard.frontText);
+                        speakKokoro(currentCard.frontText);
                       }}
                       className="p-1.5 sm:p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 transition-transform"
                       title="Phát âm"
@@ -376,7 +413,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        speak(currentCard.backText);
+                        speakBack(currentCard.backText);
                       }}
                       className="p-1.5 sm:p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 hover:scale-110 transition-transform"
                       title="Phát âm"
@@ -436,6 +473,31 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
             </div>
           </div>
 
+          {currentCard.sourceVideoId && (
+            <div className="flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowVideoClip((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 text-[11px] font-extrabold hover:bg-rose-100 dark:hover:bg-rose-900 transition-colors"
+              >
+                <Film className="w-3.5 h-3.5" />
+                <span>{showVideoClip ? 'Ẩn video gốc' : 'Xem video gốc (dẫn chứng)'}</span>
+              </button>
+              {showVideoClip && (
+                <div className="w-full max-w-md aspect-video rounded-2xl overflow-hidden border border-[#E4E8F0] dark:border-[#334155] shadow-md">
+                  <iframe
+                    key={currentCard.id}
+                    src={`https://www.youtube.com/embed/${currentCard.sourceVideoId}?start=${currentCard.clipStartSec ?? 0}&end=${currentCard.clipEndSec ?? 0}&autoplay=1`}
+                    className="w-full h-full"
+                    allow="autoplay; encrypted-media"
+                    allowFullScreen
+                    title="Video gốc"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-2 sm:gap-4 pt-1 sm:pt-2">
             <label className="flex items-center gap-1.5 sm:gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
               <button
@@ -459,7 +521,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                 {/* 1. AGAIN (< 1 min) */}
                 <button
                   type="button"
-                  onClick={handleMarkLearning}
+                  onClick={handleAgain}
                   className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
                   title="Chưa nhớ - Ôn lại sau 1 phút"
                 >
@@ -470,7 +532,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                 {/* 2. HARD (10 min) */}
                 <button
                   type="button"
-                  onClick={handleMarkLearning}
+                  onClick={handleHard}
                   className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
                   title="Khó nhớ - Ôn lại sau 10 phút"
                 >
@@ -481,7 +543,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                 {/* 3. GOOD (1 day) */}
                 <button
                   type="button"
-                  onClick={handleMarkKnown}
+                  onClick={handleGood}
                   className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
                   title="Nhớ tốt - Ôn lại vào ngày mai"
                 >
@@ -492,7 +554,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                 {/* 4. EASY (4 days) */}
                 <button
                   type="button"
-                  onClick={handleMarkKnown}
+                  onClick={handleEasy}
                   className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-300 flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xs group"
                   title="Rất thuộc - Ôn lại sau 4 ngày"
                 >
@@ -504,7 +566,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
               <div className="flex items-center gap-2.5 sm:gap-4">
                 <button
                   type="button"
-                  onClick={handleMarkLearning}
+                  onClick={handleAgain}
                   className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-slate-200 dark:border-slate-700 text-amber-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
                   title="Đang học"
                 >
@@ -513,7 +575,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
 
                 <button
                   type="button"
-                  onClick={handleMarkKnown}
+                  onClick={handleGood}
                   className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-slate-200 dark:border-slate-700 text-emerald-600 flex items-center justify-center shadow-md transition-all active:scale-90 group"
                   title="Đã biết"
                 >
@@ -558,7 +620,7 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
                   >
                     <div className="sm:col-span-5 font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
                       <button
-                        onClick={() => speak(c.frontText)}
+                        onClick={() => speakKokoro(c.frontText)}
                         className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
                       >
                         <Volume2 className="w-3.5 h-3.5" />
@@ -652,6 +714,27 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
       {activeMode === 'pronounce' && (
         <PronunciationModePlayer set={set} onFinish={() => setActiveMode('flashcard')} />
       )}
+
+      <ModelDownloadPromptModal
+        isOpen={isTtsPromptOpen}
+        onClose={() => setIsTtsPromptOpen(false)}
+        onGoToSettings={() => {
+          setIsTtsPromptOpen(false);
+          navigate('/settings');
+        }}
+        title="Cần Tải Model Đọc Giọng Nói (~86MB)"
+        subtitle="Phục vụ đọc to thuật ngữ Flashcard bằng giọng tự nhiên"
+        description={
+          <>
+            <p>
+              Nút loa dùng mô hình học máy <strong>Kokoro TTS</strong> để đọc thuật ngữ bằng giọng tự nhiên, chạy trực tiếp trên trình duyệt của bạn.
+            </p>
+            <p className="text-slate-500 dark:text-slate-400">
+              Hiện tại gói tài nguyên này chưa được tải về máy. Bạn có muốn di chuyển đến trang <strong>Quản Lý Tài Nguyên</strong> để tải về không?
+            </p>
+          </>
+        }
+      />
 
     </div>
   );
