@@ -274,6 +274,34 @@ export const FlashcardPlayer: React.FC<FlashcardPlayerProps> = ({
       {/* MODE 1: FLASHCARD PLAYER */}
       {activeMode === 'flashcard' && (
         <div className={`space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-[#F8FAFC] dark:bg-[#0F172A] text-slate-900 dark:text-white p-3 sm:p-6 overflow-y-auto sm:overflow-hidden flex flex-col justify-center items-center' : ''}`}>
+          {/* Pinned to the viewport corner (fixed, not part of the scrollable flow below) —
+              on short viewports the rest of the fullscreen layout (card + rating buttons +
+              the toggle further down) can overflow past the fold, making the only exit/mark
+              controls invisible without scrolling. These are always reachable regardless. */}
+          {isFullscreen && (
+            <div className="fixed top-3 right-3 sm:top-5 sm:right-5 z-[60] flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleStar(currentCard.id)}
+                className={`p-2.5 rounded-full border shadow-md transition-colors ${
+                  starredIds.includes(currentCard.id)
+                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 border-amber-300'
+                    : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
+                }`}
+                title="Gắn sao"
+              >
+                <Star className={`w-5 h-5 ${starredIds.includes(currentCard.id) ? 'fill-amber-500' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="p-2.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                title="Thoát toàn màn hình"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          )}
           <div className={`w-full ${isFullscreen ? 'max-w-3xl h-full flex flex-col justify-between space-y-3 sm:space-y-4 py-1 sm:py-2' : 'space-y-6'}`}>
           
           <div className="flex items-center justify-between gap-2 sm:gap-4">
