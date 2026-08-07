@@ -19,7 +19,8 @@ import {
   LogOut, 
   ChevronRight, 
   LogIn,
-  HardDrive
+  HardDrive,
+  Menu
 } from 'lucide-react';
 
 interface HeaderTopNavProps {
@@ -84,7 +85,7 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
                 <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-[#2E68FF] to-[#7C5CFC] flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform duration-200">
                   <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div className="hidden sm:block">
+                <div>
                   <div className="flex items-center gap-1.5">
                     <span className="font-extrabold text-lg sm:text-xl tracking-tight text-[#1B1F2E] dark:text-[#F1F5F9] font-display">
                       Talk2Me
@@ -130,35 +131,39 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
               })}
             </nav>
 
-            {/* Right Action Tools */}
+            {/* Right Action Tools — full toolbar on desktop (xl+); on mobile/tablet
+                everything (Create, theme, notifications, account) lives behind a single
+                menu button that opens MobileDrawer, since there isn't room to show every
+                icon individually on a narrow header. */}
             <div className="flex items-center gap-2 sm:gap-3">
-              
-              {/* Create Course Button — icon-only on mobile to save header space */}
+
+              <div className="hidden xl:flex items-center gap-2 sm:gap-3">
+              {/* Create Course Button */}
               <button
                 onClick={() => onOpenCreateModal()}
-                className="flex items-center gap-1.5 p-2 sm:px-3.5 sm:py-2 rounded-full bg-[#2E68FF] hover:bg-[#1E52DB] text-white text-xs font-bold shadow-sm transition-all"
-                title="Tạo khóa học"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#2E68FF] hover:bg-[#1E52DB] text-white text-xs font-bold shadow-sm transition-all"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Tạo khóa học</span>
+                <span>Tạo khóa học</span>
               </button>
 
-              {/* Dark Mode Toggle (Desktop) */}
+              {/* Dark Mode Toggle */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
-                className="hidden sm:flex p-2.5 rounded-full text-[#5A6478] dark:text-[#CBD5E1] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] transition-colors"
+                className="p-2.5 rounded-full text-[#5A6478] dark:text-[#CBD5E1] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] transition-colors"
                 title="Toggle theme"
               >
                 {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
               </button>
 
-              {/* Dedicated Notifications Bell Button (Navigates to /notifications Screen) */}
+              {/* Dedicated Notifications Bell Button (Navigates to /notifications Screen) —
+                  only meaningful for logged-in users; dueCount is always 0 for guests. */}
               <button
                 onClick={() => {
                   setCurrentTab('notifications');
                   navigate('/notifications');
                 }}
-                className="p-2 sm:p-2.5 rounded-full text-[#5A6478] dark:text-[#CBD5E1] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] transition-colors relative"
+                className="p-2.5 rounded-full text-[#5A6478] dark:text-[#CBD5E1] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] transition-colors relative"
                 title="Thông báo"
               >
                 <Bell className="w-4 h-4" />
@@ -167,20 +172,13 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
                 )}
               </button>
 
-              {/* User Profile Avatar (Desktop Dropdown Popup / Mobile Opens Drawer) */}
+              {/* User Profile Avatar (Desktop Dropdown Popup) */}
               <div className="relative pl-1 sm:pl-2 border-l border-[#E4E8F0] dark:border-[#334155] flex items-center gap-2">
                 {user ? (
                   <>
                     <button
                       type="button"
-                      onClick={() => {
-                        // On small screens, open the drawer for full mobile experience
-                        if (window.innerWidth < 1280) {
-                          setIsDrawerOpen(true);
-                        } else {
-                          setShowUserMenu(!showUserMenu);
-                        }
-                      }}
+                      onClick={() => setShowUserMenu(!showUserMenu)}
                       className="flex items-center gap-2 p-0.5 rounded-full hover:ring-2 hover:ring-[#2E68FF]/50 transition-all focus:outline-none"
                     >
                       {user.avatarUrl ? (
@@ -313,6 +311,21 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
                   </button>
                 )}
               </div>
+              </div>
+
+              {/* Mobile/Tablet: single menu button opens MobileDrawer (Create, theme,
+                  notifications shortcut, account/login all live there instead) */}
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                className="xl:hidden p-2.5 rounded-full text-[#5A6478] dark:text-[#CBD5E1] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] transition-colors relative"
+                title="Menu"
+              >
+                <Menu className="w-5 h-5" />
+                {dueCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#2E68FF] ring-2 ring-white dark:ring-[#1E293B]" />
+                )}
+              </button>
 
             </div>
           </div>
