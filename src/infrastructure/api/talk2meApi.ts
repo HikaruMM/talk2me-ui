@@ -4,6 +4,7 @@ import type { Course, WritingEvaluation, SpeakingEvaluation, Flashcard, Flashcar
 
 const API_BASE = API_BASE_URL;
 const JWT_STORAGE_KEY = 'talk2me_jwt_token';
+const REFRESH_STORAGE_KEY = 'talk2me_refresh_token';
 
 interface LLMConfigPayload {
   apiKey: string;
