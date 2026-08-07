@@ -43,6 +43,29 @@ function checkDownloaded(kind: AiResourceKind): Promise<boolean> {
   return kind === 'pronunciation' ? isModelDownloaded() : Promise.resolve(isTtsModelDownloaded());
 }
 
+// Without this, every mount of every component that calls this hook (Flashcard/Writing/
+// Speaking/Shadowing players — several different screens) would re-show the "download this
+// model?" prompt for as long as the user hasn't downloaded it, which gets naggy fast.
+// Persisted in localStorage so it stays suppressed across page loads/sessions, not just
+// this one — the user can still go to Settings manually to download later if they want.
+const PROMPT_SEEN_KEY_PREFIX = 'talk2me_ai_prompt_seen_';
+
+function hasSeenPrompt(kind: AiResourceKind): boolean {
+  try {
+    return localStorage.getItem(`${PROMPT_SEEN_KEY_PREFIX}${kind}`) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function markPromptSeen(kind: AiResourceKind): void {
+  try {
+    localStorage.setItem(`${PROMPT_SEEN_KEY_PREFIX}${kind}`, 'true');
+  } catch {
+    // ignore — worst case the prompt shows again next time
+  }
+}
+
 interface UseAiResourceGateResult {
   /** True once confirmed downloaded — false both while checking and when genuinely absent. */
   isAvailable: boolean;
@@ -67,7 +90,8 @@ export function useAiResourceGate(kind: AiResourceKind, preload: () => void): Us
       if (downloaded) {
         setIsAvailable(true);
         preload();
-      } else {
+      } else if (!hasSeenPrompt(kind)) {
+        markPromptSeen(kind);
         setIsPromptOpen(true);
       }
     });
