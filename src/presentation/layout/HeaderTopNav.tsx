@@ -313,19 +313,36 @@ export const HeaderTopNav: React.FC<HeaderTopNavProps> = ({
               </div>
               </div>
 
-              {/* Mobile/Tablet: single menu button opens MobileDrawer (Create, theme,
-                  notifications shortcut, account/login all live there instead) */}
-              <button
-                type="button"
-                onClick={() => setIsDrawerOpen(true)}
-                className="xl:hidden p-2.5 rounded-full text-[#5A6478] dark:text-[#CBD5E1] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] transition-colors relative"
-                title="Menu"
-              >
-                <Menu className="w-5 h-5" />
-                {dueCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#2E68FF] ring-2 ring-white dark:ring-[#1E293B]" />
-                )}
-              </button>
+              {/* Mobile/Tablet: a single icon on the right. Guests have nothing to put in
+                  a menu yet (drawer would just be the same login prompt), so they get a
+                  direct login icon; once logged in there are enough features (profile,
+                  notifications, progress, settings, logout, create, theme) to warrant the
+                  MobileDrawer menu instead. */}
+              {user ? (
+                <button
+                  type="button"
+                  onClick={() => setIsDrawerOpen(true)}
+                  className="xl:hidden p-2.5 rounded-full text-[#5A6478] dark:text-[#CBD5E1] hover:bg-[#F1F4F9] dark:hover:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] transition-colors relative"
+                  title="Menu"
+                >
+                  <Menu className="w-5 h-5" />
+                  {dueCount > 0 && (
+                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#2E68FF] ring-2 ring-white dark:ring-[#1E293B]" />
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenAuth) onOpenAuth('login');
+                    else setCurrentTab('auth');
+                  }}
+                  className="xl:hidden p-2.5 rounded-full bg-[#2E68FF] hover:bg-blue-600 text-white transition-all active:scale-95"
+                  title="Đăng nhập"
+                >
+                  <LogIn className="w-5 h-5" />
+                </button>
+              )}
 
             </div>
           </div>
