@@ -1,6 +1,12 @@
 import { API_BASE_URL } from '../config';
 
 const API_BASE = API_BASE_URL;
+const JWT_STORAGE_KEY = 'talk2me_jwt_token';
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem(JWT_STORAGE_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export interface GeminiModel {
   id: string;
@@ -106,7 +112,7 @@ export async function fetchLiveModels(apiKeyHint?: string): Promise<GeminiModel[
     url.searchParams.set('apiKey', apiKeyHint.trim());
   }
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), { headers: authHeaders() });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail || `Không lấy được danh sách model từ Gemini (mã lỗi ${response.status})`);
@@ -197,7 +203,7 @@ export async function generateCompletion(
 
   const response = await fetch(`${API_BASE}/llm/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       prompt,
       systemInstruction,
