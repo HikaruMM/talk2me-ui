@@ -3,6 +3,7 @@ import { Category } from '../../../core/entities';
 import { CategoryCombobox } from './CategoryCombobox';
 import { X, Sparkles, Youtube, Loader2, AlertCircle } from 'lucide-react';
 import { useGenerateCourseMutation } from '../../../application/queries/useCourseGenerationQuery';
+import { getGenerationStatus } from '../../../infrastructure/api/talk2meApi';
 
 interface CreateCourseModalProps {
   isOpen: boolean;
@@ -11,6 +12,35 @@ interface CreateCourseModalProps {
   onCourseQueued: () => void;
   prefillUrl?: string;
   onCreateCategory: (name: string) => void;
+}
+
+const EARLY_FAILURE_POLL_MS = 1500;
+const EARLY_FAILURE_TIMEOUT_MS = 15000;
+
+/**
+ * Generation runs as a background job — POST /courses/generate returns as soon as the job
+ * is queued, before the transcript is even fetched. Fast failures (bad link, no captions)
+ * happen within a few seconds, so poll briefly right after queueing to catch those and show
+ * the real backend error instead of leaving the modal looking like it succeeded. Gives up
+ * after EARLY_FAILURE_TIMEOUT_MS and treats it as a normal (slower) background run.
+ */
+async function waitForEarlyFailure(courseId: string): Promise<string | null> {
+  const deadline = Date.now() + EARLY_FAILURE_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, EARLY_FAILURE_POLL_MS));
+    try {
+      const status = await getGenerationStatus(courseId);
+      if (status.status === 'failed') {
+        return status.lastError || 'Tạo khoá học thất bại.';
+      }
+      if (status.status !== 'queued') {
+        return null; // already progressing normally
+      }
+    } catch {
+      return null; // don't block the user on a flaky status check
+    }
+  }
+  return null;
 }
 
 export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
@@ -28,6 +58,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
   const [selectedCategoryId, setSelectedCategoryId] = useState(defaultCatId);
   const [difficulty, setDifficulty] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Intermediate');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const generateMutation = useGenerateCourseMutation();
 
@@ -57,15 +88,26 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
 
     try {
       const selectedCat = categories.find((c) => c.id === selectedCategoryId);
-      await generateMutation.mutateAsync({
+      const { courseId } = await generateMutation.mutateAsync({
         youtubeUrl,
         category: selectedCat ? selectedCat.name : 'Tiếng Anh & Ngoại Ngữ',
         difficulty,
       });
+
+      setIsCheckingStatus(true);
+      const earlyError = await waitForEarlyFailure(courseId);
+      setIsCheckingStatus(false);
+
+      if (earlyError) {
+        setErrorMsg(earlyError);
+        return;
+      }
+
       resetForm();
       onCourseQueued();
     } catch (err: any) {
       console.error('Course creation error:', err);
+      setIsCheckingStatus(false);
       setErrorMsg(err.message || 'Lỗi khởi tạo khóa học. Vui lòng kiểm tra lại liên kết YouTube.');
     }
   };
@@ -121,7 +163,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
                 placeholder="https://www.youtube.com/watch?v=..."
                 className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-2xl bg-[#F1F4F9] dark:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF] focus:outline-none placeholder-[#95A0B4]"
                 required
-                disabled={generateMutation.isPending}
+                disabled={generateMutation.isPending || isCheckingStatus}
               />
             </div>
           </div>
@@ -166,15 +208,15 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
           {/* Submit Action Button */}
           <button
             type="submit"
-            disabled={generateMutation.isPending}
+            disabled={generateMutation.isPending || isCheckingStatus}
             className="w-full py-4 rounded-2xl bg-[#2E68FF] hover:bg-[#1E52DB] disabled:opacity-60 text-white font-extrabold text-sm tracking-wide uppercase shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all mt-4"
           >
-            {generateMutation.isPending ? (
+            {generateMutation.isPending || isCheckingStatus ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Sparkles className="w-4 h-4 fill-white" />
             )}
-            <span>Bắt Đầu Tạo Khóa Học AI</span>
+            <span>{isCheckingStatus ? 'Đang kiểm tra video...' : 'Bắt Đầu Tạo Khóa Học AI'}</span>
           </button>
         </form>
       </div>
