@@ -1,0 +1,7 @@
+# Cross-origin isolation for the Cloudflare Workers Assets deployment (wrangler.jsonc).
+# Same rationale as server.ts's Express middleware: lets pronunciationScorer.worker.ts use
+# SharedArrayBuffer for multi-threaded WASM inference. 'credentialless' (not 'require-corp')
+# because the app embeds YouTube <iframe> video players, which 'require-corp' would block.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless

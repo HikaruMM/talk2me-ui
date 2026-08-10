@@ -11,6 +11,21 @@ const dirName = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
+// Cross-origin isolation (COOP/COEP) so the pronunciation-scoring ONNX Runtime Web worker
+// can use SharedArrayBuffer and run WASM inference multi-threaded instead of being forced
+// to a single thread (see pronunciationScorer.worker.ts). COEP is 'credentialless' rather
+// than 'require-corp' — the app embeds YouTube <iframe> video players (useYoutubeSegmentPlayer.ts),
+// and 'require-corp' is well known to block third-party embeds like YouTube's that don't send
+// their own Cross-Origin-Embedder-Policy header. 'credentialless' still isolates the page but
+// only strips credentials from cross-origin sub-requests instead of requiring the far end to
+// opt in, so the video embed keeps working. Browsers without credentialless support (older
+// Safari) simply never become crossOriginIsolated, and the worker falls back to numThreads=1.
+app.use((_req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+  next();
+});
+
 // Lazy init Gemini AI
 function getAiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
