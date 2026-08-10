@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Course } from '../../core/entities';
 import {
+  GenerateCourseClientData,
   GenerateCourseResult,
   GenerationStatus,
   generateCourse,
@@ -8,10 +9,18 @@ import {
   getGenerationStatus,
 } from '../../infrastructure/api/talk2meApi';
 
+interface GenerateCourseVariables {
+  youtubeUrl: string;
+  category: string;
+  difficulty: string;
+  clientData?: GenerateCourseClientData;
+}
+
 export const useGenerateCourseMutation = () => {
   const queryClient = useQueryClient();
-  return useMutation<GenerateCourseResult, Error, { youtubeUrl: string; category: string; difficulty: string }>({
-    mutationFn: ({ youtubeUrl, category, difficulty }) => generateCourse(youtubeUrl, category, difficulty),
+  return useMutation<GenerateCourseResult, Error, GenerateCourseVariables>({
+    mutationFn: ({ youtubeUrl, category, difficulty, clientData }) =>
+      generateCourse(youtubeUrl, category, difficulty, clientData),
     onSuccess: () => {
       // Kicked off (or resumed) a job — refresh the courses list so the new/retried
       // course shows up right away in its 'processing' state.

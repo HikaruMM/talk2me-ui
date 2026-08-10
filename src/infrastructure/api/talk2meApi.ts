@@ -138,14 +138,34 @@ export interface GenerationStatus {
   lastError?: string | null;
 }
 
+export interface ClientTranscriptSegment {
+  text: string;
+  start: number;
+  duration: number;
+}
+
+/**
+ * Transcript/metadata already fetched client-side (oEmbed + the transcript extension — see
+ * docs/design-chrome-extension-transcript-2026-08-08.md) so the backend can skip its own
+ * yt-dlp/youtube_transcript_api attempt, which is subject to YouTube's bot-detection blocking.
+ * Omit any field to let the backend fall back to fetching it server-side as before.
+ */
+export interface GenerateCourseClientData {
+  transcriptSegments?: ClientTranscriptSegment[];
+  videoTitle?: string;
+  videoThumbnail?: string;
+  videoChannel?: string;
+}
+
 export function generateCourse(
   youtubeUrl: string,
   category: string,
-  difficulty: string
+  difficulty: string,
+  clientData?: GenerateCourseClientData
 ): Promise<GenerateCourseResult> {
   return apiFetch('/courses/generate', {
     method: 'POST',
-    body: JSON.stringify({ youtubeUrl, category, difficulty, llmConfig: buildLlmConfig() }),
+    body: JSON.stringify({ youtubeUrl, category, difficulty, llmConfig: buildLlmConfig(), ...clientData }),
   });
 }
 

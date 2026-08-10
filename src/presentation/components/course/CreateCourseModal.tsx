@@ -3,7 +3,9 @@ import { Category } from '../../../core/entities';
 import { CategoryCombobox } from './CategoryCombobox';
 import { X, Sparkles, Youtube, Loader2, AlertCircle } from 'lucide-react';
 import { useGenerateCourseMutation } from '../../../application/queries/useCourseGenerationQuery';
-import { getGenerationStatus } from '../../../infrastructure/api/talk2meApi';
+import { getGenerationStatus, GenerateCourseClientData } from '../../../infrastructure/api/talk2meApi';
+import { fetchYoutubeOEmbedMetadata } from '../../../infrastructure/api/youtubeOEmbed';
+import { fetchTranscriptViaExtension } from '../../../infrastructure/api/youtubeTranscriptExtension';
 
 interface CreateCourseModalProps {
   isOpen: boolean;
@@ -59,6 +61,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
   const [difficulty, setDifficulty] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Intermediate');
   const [errorMsg, setErrorMsg] = useState('');
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [isFetchingClientData, setIsFetchingClientData] = useState(false);
 
   const generateMutation = useGenerateCourseMutation();
 
@@ -88,10 +91,31 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
 
     try {
       const selectedCat = categories.find((c) => c.id === selectedCategoryId);
+
+      // Try to fetch metadata (oEmbed) and transcript (extension) from the client first —
+      // both run on the user's real browser/IP, sidestepping the backend's unreliable
+      // yt-dlp/youtube_transcript_api fetch (see docs/design-chrome-extension-transcript-2026-08-08.md).
+      // Either can silently come back null (extension not installed, oEmbed hiccup, etc.);
+      // the backend falls back to fetching whatever's missing itself.
+      setIsFetchingClientData(true);
+      const [metadata, transcriptSegments] = await Promise.all([
+        fetchYoutubeOEmbedMetadata(youtubeUrl),
+        fetchTranscriptViaExtension(youtubeUrl),
+      ]);
+      setIsFetchingClientData(false);
+
+      const clientData: GenerateCourseClientData = {
+        ...(transcriptSegments ? { transcriptSegments } : {}),
+        ...(metadata
+          ? { videoTitle: metadata.title, videoThumbnail: metadata.thumbnail, videoChannel: metadata.channel }
+          : {}),
+      };
+
       const { courseId } = await generateMutation.mutateAsync({
         youtubeUrl,
         category: selectedCat ? selectedCat.name : 'Tiếng Anh & Ngoại Ngữ',
         difficulty,
+        clientData,
       });
 
       setIsCheckingStatus(true);
@@ -107,6 +131,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
       onCourseQueued();
     } catch (err: any) {
       console.error('Course creation error:', err);
+      setIsFetchingClientData(false);
       setIsCheckingStatus(false);
       setErrorMsg(err.message || 'Lỗi khởi tạo khóa học. Vui lòng kiểm tra lại liên kết YouTube.');
     }
@@ -163,7 +188,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
                 placeholder="https://www.youtube.com/watch?v=..."
                 className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-2xl bg-[#F1F4F9] dark:bg-[#273449] border border-[#E4E8F0] dark:border-[#334155] text-[#1B1F2E] dark:text-white focus:ring-2 focus:ring-[#2E68FF] focus:outline-none placeholder-[#95A0B4]"
                 required
-                disabled={generateMutation.isPending || isCheckingStatus}
+                disabled={generateMutation.isPending || isCheckingStatus || isFetchingClientData}
               />
             </div>
           </div>
@@ -208,15 +233,21 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
           {/* Submit Action Button */}
           <button
             type="submit"
-            disabled={generateMutation.isPending || isCheckingStatus}
+            disabled={generateMutation.isPending || isCheckingStatus || isFetchingClientData}
             className="w-full py-4 rounded-2xl bg-[#2E68FF] hover:bg-[#1E52DB] disabled:opacity-60 text-white font-extrabold text-sm tracking-wide uppercase shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all mt-4"
           >
-            {generateMutation.isPending || isCheckingStatus ? (
+            {generateMutation.isPending || isCheckingStatus || isFetchingClientData ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Sparkles className="w-4 h-4 fill-white" />
             )}
-            <span>{isCheckingStatus ? 'Đang kiểm tra video...' : 'Bắt Đầu Tạo Khóa Học AI'}</span>
+            <span>
+              {isFetchingClientData
+                ? 'Đang lấy phụ đề video...'
+                : isCheckingStatus
+                  ? 'Đang kiểm tra video...'
+                  : 'Bắt Đầu Tạo Khóa Học AI'}
+            </span>
           </button>
         </form>
       </div>
