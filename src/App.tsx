@@ -236,13 +236,15 @@ function AppContent() {
   // showing the same "please log in" message twice).
   const handleTabChange = (_tab: string) => {};
 
-  // Filter public demo courses for HomePage
+  // Filter public demo courses for HomePage (fallback if API is unreachable)
   const filteredPublicCourses = publicCourses.filter((c) => {
     const matchesCategory = selectedCategory === 'all' || c.categoryId === selectedCategory || c.category.toLowerCase() === selectedCategory.toLowerCase();
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch = !query || c.title.toLowerCase().includes(query) || c.description.toLowerCase().includes(query) || c.category.toLowerCase().includes(query);
     return matchesCategory && matchesSearch;
   });
+
+  const homeCourses = myCourses.length > 0 || isCoursesLoading ? myCourses : filteredPublicCourses;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F8FB] dark:bg-[#0F172A] text-[#1B1F2E] dark:text-[#F1F5F9] transition-colors duration-200">
@@ -262,13 +264,13 @@ function AppContent() {
       {/* Main Page Content Body with React Router Routes */}
       <main className="flex-1 pb-20 xl:pb-0">
         <Routes>
-            {/* HOME PAGE ROUTE (Displays Platform Public Demo Courses) */}
+            {/* HOME PAGE ROUTE (Displays Real Database Courses) */}
             <Route
               path="/"
               element={
                 <div className="pt-8">
                   <HomePage
-                    courses={filteredPublicCourses}
+                    courses={homeCourses}
                     categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
                     selectedCategory={selectedCategory}
                     onSelectCategory={handleSelectCategory}

@@ -80,7 +80,15 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
   const deleteMutation = useDeleteCourseMutation();
   const { iframeRef: theoryVideoRef, playSegment: playTheorySegment } = useYoutubeSegmentPlayer(course.youtubeVideoId);
 
-  const canDelete = Boolean(user && (onDeleteCourse || (course.userId && course.userId === user.id)));
+  // Guest users (user === null) CANNOT delete courses.
+  // Default courses created by kduyen678@gmail.com can only be deleted by kduyen678@gmail.com
+  const GUEST_DEFAULT_OWNER_ID = '4e2dc35e-ea29-4518-82ed-e63ea826563d';
+  const isGuestDefaultCourse = course.userId === GUEST_DEFAULT_OWNER_ID;
+  const canDelete = Boolean(
+    user &&
+    onDeleteCourse &&
+    (!isGuestDefaultCourse || user.id === GUEST_DEFAULT_OWNER_ID || user.email === 'kduyen678@gmail.com')
+  );
 
   // Only visible while the user is actively scrolling — fades back out ~1.2s after the
   // last scroll event (standing still), instead of staying pinned onscreen the whole time

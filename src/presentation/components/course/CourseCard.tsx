@@ -5,6 +5,8 @@ import { useGenerateCourseMutation } from '../../../application/queries/useCours
 import { useDeleteCourseMutation } from '../../../application/queries/useCoursesQuery';
 import { useAuth } from '../../../application/hooks/useAuth';
 
+import { GUEST_DEFAULT_OWNER_ID } from '../../../infrastructure/data/mockCourses';
+
 interface CourseCardProps {
   course: Course;
   onSelectCourse: (course: Course) => void;
@@ -18,8 +20,14 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, onSelectCourse, 
   const retryMutation = useGenerateCourseMutation();
   const deleteMutation = useDeleteCourseMutation();
 
-  // Only allow deletion if user is logged in AND owns the course (or it's in their My Courses library)
-  const canDelete = Boolean(user && (onDeleteCourse || (course.userId && course.userId === user.id)));
+  // Guest users (user === null) CANNOT delete courses.
+  // Default courses created by kduyen678@gmail.com can only be deleted by kduyen678@gmail.com
+  const isGuestDefaultCourse = course.userId === GUEST_DEFAULT_OWNER_ID;
+  const canDelete = Boolean(
+    user &&
+    onDeleteCourse &&
+    (!isGuestDefaultCourse || user.id === GUEST_DEFAULT_OWNER_ID || user.email === 'kduyen678@gmail.com')
+  );
 
   const handleRetry = async (e: React.MouseEvent) => {
     e.stopPropagation();

@@ -9,7 +9,7 @@ export const useCoursesQuery = (category?: string, query?: string) => {
     queryFn: async (): Promise<Course[]> => {
       try {
         const apiCourses = await getCourses(category, query);
-        if (Array.isArray(apiCourses) && apiCourses.length > 0) {
+        if (Array.isArray(apiCourses)) {
           return apiCourses;
         }
       } catch (err) {
