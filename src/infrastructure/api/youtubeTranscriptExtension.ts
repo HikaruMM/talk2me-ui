@@ -24,6 +24,37 @@ function extractYoutubeVideoId(youtubeUrl: string): string {
   return match ? match[1] : '';
 }
 
+export const EXTENSION_DRIVE_LINK = 'https://drive.google.com/drive/folders/1EwYnrPG8NCBOGbyjKQEUpvlO9dncuENk?usp=sharing';
+
+/**
+ * Checks if the Talk2Me Transcript Helper Extension is installed and active.
+ */
+export async function checkExtensionInstalled(): Promise<boolean> {
+  if (typeof window !== 'undefined' && (window as any).__TALK2ME_EXTENSION_INSTALLED__) {
+    return true;
+  }
+
+  const chromeRuntime = window.chrome?.runtime;
+  if (!YT_TRANSCRIPT_EXTENSION_ID || !chromeRuntime?.sendMessage) return false;
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(false), 1000);
+    try {
+      chromeRuntime.sendMessage(YT_TRANSCRIPT_EXTENSION_ID, { type: 'PING' }, (response) => {
+        clearTimeout(timeout);
+        if (chromeRuntime.lastError) {
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      });
+    } catch {
+      clearTimeout(timeout);
+      resolve(false);
+    }
+  });
+}
+
 /**
  * Asks the Talk2Me Transcript Helper Chrome extension (see talk2me-extension/) to fetch a
  * video's transcript using the user's own browser — sidesteps both YouTube's bot-detection
@@ -64,3 +95,4 @@ export async function fetchTranscriptViaExtension(youtubeUrl: string): Promise<E
     }
   });
 }
+
