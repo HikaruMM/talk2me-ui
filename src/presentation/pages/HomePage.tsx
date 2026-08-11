@@ -15,6 +15,7 @@ interface HomePageProps {
   onCreateCourseClick: () => void;
   onExploreCourses: () => void;
   onExploreFlashcards: () => void;
+  isLoading?: boolean;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -28,9 +29,10 @@ export const HomePage: React.FC<HomePageProps> = ({
   onCreateCourseClick,
   onExploreCourses,
   onExploreFlashcards,
+  isLoading = false,
 }) => {
   return (
-    <div className="space-y-8 lg:space-y-12">
+    <div className="space-y-8 lg:space-y-12 pb-12 sm:pb-20">
       {/* Hero Header */}
       <HeroSection
         onOpenCreateModal={onCreateCourseClick}
@@ -50,8 +52,24 @@ export const HomePage: React.FC<HomePageProps> = ({
           onSearchChange={onSearchChange}
         />
 
-        {/* Course Cards Grid */}
-        {courses.length === 0 ? (
+        {/* Course Cards Grid or Skeleton Loader */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
+            {[1, 2, 3, 4].map((n) => (
+              <div
+                key={n}
+                className="bg-white dark:bg-[#1E293B] rounded-3xl p-4 border border-[#E4E8F0] dark:border-[#334155] animate-pulse space-y-4 shadow-sm"
+              >
+                <div className="aspect-[16/10] rounded-2xl bg-slate-200 dark:bg-slate-700/60 w-full" />
+                <div className="space-y-2">
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700/60 rounded-full w-3/4" />
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700/60 rounded-full w-1/2" />
+                </div>
+                <div className="h-10 bg-slate-200 dark:bg-slate-700/60 rounded-2xl w-full" />
+              </div>
+            ))}
+          </div>
+        ) : courses.length === 0 ? (
           <div className="p-12 text-center rounded-3xl bg-white dark:bg-[#1E293B] border border-dashed border-slate-200 dark:border-slate-800 space-y-3">
             <p className="text-sm text-slate-500 font-medium">Không tìm thấy khóa học nào phù hợp.</p>
             <button
@@ -77,8 +95,8 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Stats Ribbon */}
       <StatsRibbon />
 
-      {/* FAQ */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* FAQ Section with ample bottom margin and padding */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-16 sm:pb-24 my-8 sm:my-12">
         <FAQSection />
       </div>
     </div>

@@ -24,7 +24,7 @@ export const FAQSection: React.FC = () => {
   ];
 
   return (
-    <section className="py-12 bg-white dark:bg-[#1E293B] rounded-3xl border border-[#E4E8F0] dark:border-[#334155] p-6 sm:p-10 shadow-sm max-w-4xl mx-auto space-y-8">
+    <section className="py-12 bg-white dark:bg-[#1E293B] rounded-3xl border border-[#E4E8F0] dark:border-[#334155] p-6 sm:p-10 shadow-sm max-w-4xl mx-auto space-y-8 mb-8 sm:mb-12">
       <div className="text-center space-y-2">
         <span className="px-3.5 py-1 rounded-full bg-blue-50 text-[#2E68FF] text-xs font-bold uppercase">
           FAQ

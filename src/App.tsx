@@ -271,6 +271,7 @@ function AppContent() {
                 <div className="pt-8">
                   <HomePage
                     courses={homeCourses}
+                    isLoading={isCoursesLoading}
                     categories={categories.length > 0 ? categories : INITIAL_CATEGORIES}
                     selectedCategory={selectedCategory}
                     onSelectCategory={handleSelectCategory}
