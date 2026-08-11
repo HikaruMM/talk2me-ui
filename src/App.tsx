@@ -52,21 +52,12 @@ function CourseDetailRouteWrapper({
     setCourse(null);
     getCourseDetail(courseId)
       .then((res) => {
-        if (res) {
-          setCourse(res);
-        } else {
-          const fallback = INITIAL_COURSES.find((c) => c.id === courseId);
-          setCourse(fallback || null);
-        }
+        setCourse(res || null);
       })
       .catch((err) => {
-        console.warn('Failed to fetch course detail, using fallback:', err);
-        const fallback = INITIAL_COURSES.find((c) => c.id === courseId);
-        if (fallback) {
-          setCourse(fallback);
-        } else {
-          setLoadError(err?.message || 'Không thể kết nối tới máy chủ API.');
-        }
+        console.warn('Failed to fetch course detail:', err);
+        setCourse(null);
+        setLoadError(err?.message || 'Không thể kết nối tới máy chủ API.');
       })
       .finally(() => setIsLoading(false));
   };
@@ -274,7 +265,7 @@ function AppContent() {
     return matchesCategory && matchesSearch;
   });
 
-  const homeCourses = myCourses.length > 0 || isCoursesLoading ? myCourses : filteredPublicCourses;
+  const homeCourses = myCourses;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F8FB] dark:bg-[#0F172A] text-[#1B1F2E] dark:text-[#F1F5F9] transition-colors duration-200">
