@@ -40,22 +40,39 @@ function CourseDetailRouteWrapper({
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchDetail = () => {
     if (!courseId) {
-      // Nothing to load — bounce back instead of a spinner stuck forever.
       navigate('/courses', { replace: true });
       return;
     }
-    // Always fetch the FULL detail (with lessons) — the courses-list endpoints only ever
-    // return summaries, so short-circuiting with a locally-cached summary here would render
-    // a "course" with no lessons.
     setIsLoading(true);
+    setLoadError(null);
     setCourse(null);
     getCourseDetail(courseId)
-      .then((res) => setCourse(res))
-      .catch(() => setCourse(null))
+      .then((res) => {
+        if (res) {
+          setCourse(res);
+        } else {
+          const fallback = INITIAL_COURSES.find((c) => c.id === courseId);
+          setCourse(fallback || null);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch course detail, using fallback:', err);
+        const fallback = INITIAL_COURSES.find((c) => c.id === courseId);
+        if (fallback) {
+          setCourse(fallback);
+        } else {
+          setLoadError(err?.message || 'Không thể kết nối tới máy chủ API.');
+        }
+      })
       .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    fetchDetail();
   }, [courseId, navigate]);
 
   if (isLoading) {
@@ -65,13 +82,26 @@ function CourseDetailRouteWrapper({
   if (!course) {
     return (
       <div className="max-w-xl mx-auto py-16 text-center space-y-4">
-        <p className="text-lg font-bold text-[#1B1F2E] dark:text-white font-display">Không tìm thấy khóa học này</p>
-        <button
-          onClick={() => navigate('/courses')}
-          className="px-6 py-2.5 rounded-2xl bg-[#2E68FF] text-white font-bold text-xs shadow-md"
-        >
-          Quay lại danh sách khóa học
-        </button>
+        <p className="text-lg font-bold text-[#1B1F2E] dark:text-white font-display">
+          {loadError ? 'Không thể tải khóa học (Lỗi kết nối API)' : 'Không tìm thấy khóa học này'}
+        </p>
+        <p className="text-xs text-slate-500">
+          Máy chủ backend (Render) đang khởi động lại hoặc gặp sự cố mạng. Vui lòng bấm Thử lại.
+        </p>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            onClick={fetchDetail}
+            className="px-6 py-2.5 rounded-2xl bg-[#2E68FF] text-white font-bold text-xs shadow-md hover:bg-blue-700 transition-all"
+          >
+            Thử lại
+          </button>
+          <button
+            onClick={() => navigate('/courses')}
+            className="px-6 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-md"
+          >
+            Quay lại danh sách khóa học
+          </button>
+        </div>
       </div>
     );
   }
