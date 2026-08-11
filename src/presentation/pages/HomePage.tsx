@@ -32,7 +32,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   isLoading = false,
 }) => {
   return (
-    <div className="space-y-8 lg:space-y-12 pb-12 sm:pb-20">
+    <div className="space-y-8 lg:space-y-10 pb-4">
       {/* Hero Header */}
       <HeroSection
         onOpenCreateModal={onCreateCourseClick}
@@ -95,8 +95,8 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Stats Ribbon */}
       <StatsRibbon />
 
-      {/* FAQ Section with ample bottom margin and padding */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-16 sm:pb-24 my-8 sm:my-12">
+      {/* FAQ Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
         <FAQSection />
       </div>
     </div>

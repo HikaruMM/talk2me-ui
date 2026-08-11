@@ -3,7 +3,7 @@ import { GraduationCap, Heart } from 'lucide-react';
 
 export const FooterSection: React.FC = () => {
   return (
-    <footer className="bg-white dark:bg-[#1E293B] border-t border-[#E4E8F0] dark:border-[#334155] py-10 mt-12 sm:mt-16 transition-colors">
+    <footer className="bg-white dark:bg-[#1E293B] border-t border-[#E4E8F0] dark:border-[#334155] py-8 mt-6 sm:mt-8 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         
         {/* Simple Footer Bar */}
